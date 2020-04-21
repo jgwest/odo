@@ -24,6 +24,7 @@ import (
 	versionsCommon "github.com/openshift/odo/pkg/devfile/parser/data/common"
 	"github.com/openshift/odo/pkg/kclient"
 	"github.com/openshift/odo/pkg/log"
+	"github.com/openshift/odo/pkg/machineoutput"
 	odoutil "github.com/openshift/odo/pkg/odo/util"
 	"github.com/openshift/odo/pkg/sync"
 	"github.com/openshift/odo/pkg/util"
@@ -32,9 +33,19 @@ import (
 
 // New instantiantes a component adapter
 func New(adapterContext common.AdapterContext, client kclient.Client) Adapter {
+
+	var loggingClient machineoutput.MachineEventLoggingClient
+
+	if log.IsJSON() {
+		loggingClient = machineoutput.NewConsoleMachineEventLoggingClient()
+	} else {
+		loggingClient = machineoutput.NewNoOpMachineEventLoggingClient()
+	}
+
 	return Adapter{
-		Client:         client,
-		AdapterContext: adapterContext,
+		Client:             client,
+		AdapterContext:     adapterContext,
+		machineEventLogger: loggingClient,
 	}
 }
 
@@ -42,8 +53,9 @@ func New(adapterContext common.AdapterContext, client kclient.Client) Adapter {
 type Adapter struct {
 	Client kclient.Client
 	common.AdapterContext
-	devfileBuildCmd string
-	devfileRunCmd   string
+	devfileBuildCmd    string
+	devfileRunCmd      string
+	machineEventLogger machineoutput.MachineEventLoggingClient
 }
 
 // Push updates the component if a matching component exists or creates one if it doesn't exist
@@ -375,7 +387,7 @@ func (a Adapter) pushLocal(path string, files []string, delFiles []string, isFor
 		glog.V(4).Infof("Creating %s on the remote container if it doesn't already exist", syncFolder)
 		cmdArr := getCmdToCreateSyncFolder(syncFolder)
 
-		err = exec.ExecuteCommand(&a.Client, podName, containerName, cmdArr, false)
+		err = exec.ExecuteCommand(&a.Client, podName, containerName, cmdArr, false, nil)
 		if err != nil {
 			return err
 		}
@@ -384,7 +396,7 @@ func (a Adapter) pushLocal(path string, files []string, delFiles []string, isFor
 	if len(delFiles) > 0 {
 		cmdArr := getCmdToDeleteFiles(delFiles, syncFolder)
 
-		err = exec.ExecuteCommand(&a.Client, podName, containerName, cmdArr, false)
+		err = exec.ExecuteCommand(&a.Client, podName, containerName, cmdArr, false, nil)
 		if err != nil {
 			return err
 		}
@@ -429,6 +441,8 @@ func (a Adapter) execDevfile(pushDevfileCommands []versionsCommon.DevfileCommand
 	var buildRequired bool
 	var s *log.Status
 
+	outputReceiver := machineoutput.NewMachineEventContainerOutputReceiver(&a.machineEventLogger)
+
 	if len(pushDevfileCommands) == 1 {
 		// if there is one command, it is the mandatory run command. No need to build.
 		buildRequired = false
@@ -446,7 +460,9 @@ func (a Adapter) execDevfile(pushDevfileCommands []versionsCommon.DevfileCommand
 		if (command.Name == string(common.DefaultDevfileBuildCommand) || command.Name == a.devfileBuildCmd) && buildRequired {
 			glog.V(3).Infof("Executing devfile command %v", command.Name)
 
-			for _, action := range command.Actions {
+			a.machineEventLogger.DevFileCommandExecutionBegin(command.Name, machineoutput.TimestampNow())
+
+			for index, action := range command.Actions {
 				// Change to the workdir and execute the command
 				var cmdArr []string
 				if action.Workdir != nil {
@@ -463,13 +479,20 @@ func (a Adapter) execDevfile(pushDevfileCommands []versionsCommon.DevfileCommand
 
 				defer s.End(false)
 
-				err = exec.ExecuteCommand(&a.Client, podName, *action.Component, cmdArr, show)
+				a.machineEventLogger.DevFileActionExecutionBegin(*action.Command, index, command.Name, machineoutput.TimestampNow())
+
+				err = exec.ExecuteCommand(&a.Client, podName, *action.Component, cmdArr, show, outputReceiver)
+
+				a.machineEventLogger.DevFileActionExecutionComplete(*action.Command, index, command.Name, machineoutput.TimestampNow(), err)
+
 				if err != nil {
 					s.End(false)
 					return err
 				}
 				s.End(true)
 			}
+
+			a.machineEventLogger.DevFileCommandExecutionComplete(command.Name, machineoutput.TimestampNow())
 
 			// Reset the for loop counter and iterate through all the devfile commands again for others
 			i = -1
@@ -479,7 +502,9 @@ func (a Adapter) execDevfile(pushDevfileCommands []versionsCommon.DevfileCommand
 			// Always check for buildRequired is false, since the command may be iterated out of order and we always want to execute devBuild first if buildRequired is true. If buildRequired is false, then we don't need to build and we can execute the devRun command
 			glog.V(3).Infof("Executing devfile command %v", command.Name)
 
-			for _, action := range command.Actions {
+			a.machineEventLogger.DevFileCommandExecutionBegin(command.Name, machineoutput.TimestampNow())
+
+			for index, action := range command.Actions {
 
 				// Check if the devfile run component containers have supervisord as the entrypoint.
 				// Start the supervisord if the odo component does not exist
@@ -489,6 +514,8 @@ func (a Adapter) execDevfile(pushDevfileCommands []versionsCommon.DevfileCommand
 						return
 					}
 				}
+
+				a.machineEventLogger.DevFileActionExecutionBegin(*action.Command, index, command.Name, machineoutput.TimestampNow())
 
 				// Exec the supervisord ctl stop and start for the devrun program
 				type devRunExecutable struct {
@@ -508,14 +535,18 @@ func (a Adapter) execDevfile(pushDevfileCommands []versionsCommon.DevfileCommand
 
 				for _, devRunExec := range devRunExecs {
 
-					err = exec.ExecuteCommand(&a.Client, podName, *action.Component, devRunExec.command, show)
+					err = exec.ExecuteCommand(&a.Client, podName, *action.Component, devRunExec.command, show, outputReceiver)
 					if err != nil {
 						s.End(false)
 						return
 					}
 				}
 				s.End(true)
+
+				a.machineEventLogger.DevFileActionExecutionComplete(*action.Command, index, command.Name, machineoutput.TimestampNow(), err)
 			}
+
+			a.machineEventLogger.DevFileCommandExecutionComplete(command.Name, machineoutput.TimestampNow())
 		}
 	}
 
@@ -528,7 +559,7 @@ func (a Adapter) InitRunContainerSupervisord(containerName, podName string, cont
 	for _, container := range containers {
 		if container.Name == containerName && !reflect.DeepEqual(container.Command, []string{common.SupervisordBinaryPath}) {
 			command := []string{common.SupervisordBinaryPath, "-c", common.SupervisordConfFile, "-d"}
-			err = exec.ExecuteCommand(&a.Client, podName, containerName, command, true)
+			err = exec.ExecuteCommand(&a.Client, podName, containerName, command, true, nil)
 		}
 	}
 
