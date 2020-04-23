@@ -29,7 +29,7 @@ func ExecuteCommand(client ExecClient, podName, containerName string, command []
 		textChannel = createTextReceiverChannel(receiver)
 	}
 
-	glog.V(3).Infof("Executing command %v for pod: %v in container: %v", command, podName, containerName)
+	glog.V(4).Infof("Executing command %v for pod: %v in container: %v", command, podName, containerName)
 
 	// This Go routine will automatically pipe the output from ExecCMDInContainer to
 	// our logger.
@@ -49,6 +49,8 @@ func ExecuteCommand(client ExecClient, podName, containerName string, command []
 			cmdOutput += fmt.Sprintln(line)
 			cmdOutputMutex.Unlock()
 
+			// If a container output receiver was passed to this method, then pass text to it via channel.
+			// The goroutine at the other end of this channel is designed never to block the channel writer.
 			if textChannel != nil {
 				*textChannel <- line
 			}
@@ -68,10 +70,14 @@ func ExecuteCommand(client ExecClient, podName, containerName string, command []
 	return
 }
 
+// ContainerOutputReceiver defines the interface for receiving console output from containers executed via exec command.
 type ContainerOutputReceiver interface {
-	ReceiveText(text []ReceivedText)
+	ReceiveText(text []TimestampedText)
 }
 
+// createTextReceiverChannel will, if a receiver is defined, create channels (and goroutines) that allow
+// the returned channel to never block on received text. Text passed to the returned channel will be
+// provided to the ContainerOutputReceiver.
 func createTextReceiverChannel(receiver ContainerOutputReceiver) *(chan string) {
 	if receiver == nil {
 		return nil
@@ -81,10 +87,12 @@ func createTextReceiverChannel(receiver ContainerOutputReceiver) *(chan string) 
 	result := make(chan string)
 
 	// lock on mutex when accessing this
-	receivedTextArr := []ReceivedText{}
+	receivedTextArr := []TimestampedText{}
 
 	interFuncChan := make(chan interface{})
 
+	// The goroutine waits for requests on interFuncChan, and on receiving one, it then removes the text
+	// from receiveTextArr and passes that text to the receiver.
 	go func() {
 		for {
 
@@ -101,13 +109,14 @@ func createTextReceiverChannel(receiver ContainerOutputReceiver) *(chan string) 
 				}
 			}
 
+			// Retrieve the stored text and clear the reference back to empty
 			mutex.Lock()
 			localReceivedTextArr := receivedTextArr
-			receivedTextArr = []ReceivedText{}
+			receivedTextArr = []TimestampedText{}
 			mutex.Unlock()
 
 			if len(localReceivedTextArr) > 0 {
-				// Pass the received text to the requester
+				// Pass the received text to the defined receiver
 				receiver.ReceiveText(localReceivedTextArr)
 			}
 		}
@@ -120,7 +129,7 @@ func createTextReceiverChannel(receiver ContainerOutputReceiver) *(chan string) 
 
 			text := <-result
 
-			var receivedText = ReceivedText{text, time.Now()}
+			var receivedText = TimestampedText{text, time.Now()}
 			mutex.Lock()
 			receivedTextArr = append(receivedTextArr, receivedText)
 			mutex.Unlock()
@@ -134,7 +143,8 @@ func createTextReceiverChannel(receiver ContainerOutputReceiver) *(chan string) 
 	return &result
 }
 
-type ReceivedText struct {
+// TimestampedText contains a string received from the container output of an exec command
+type TimestampedText struct {
 	Text      string
 	Timestamp time.Time
 }
