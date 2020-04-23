@@ -31,7 +31,7 @@ func NewMachineEventContainerOutputReceiver(client *MachineEventLoggingClient) *
 }
 
 // ReceiveText will receive container console output and pass it to the contained client.
-func (c MachineEventContainerOutputReceiver) ReceiveText(text []exec.ReceivedText) {
+func (c MachineEventContainerOutputReceiver) ReceiveText(text []exec.TimestampedText) {
 	for _, line := range text {
 		(*c.client).LogText(line.Text, formatTime(line.Timestamp))
 	}
