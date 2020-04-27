@@ -1,12 +1,15 @@
 package devfile
 
 import (
+	"encoding/json"
 	"fmt"
 	"os"
 	"path/filepath"
+	"strconv"
 	"strings"
 	"time"
 
+	"github.com/openshift/odo/pkg/machineoutput"
 	"github.com/openshift/odo/tests/helper"
 
 	. "github.com/onsi/ginkgo"
@@ -358,6 +361,7 @@ var _ = Describe("odo devfile push command tests", func() {
 	})
 
 })
+
 // Analyze the output of 'odo push -o json' for the machine readable event push test above.
 func analyzePushConsoleOutput(pushConsoleOutput string) {
 
@@ -374,7 +378,7 @@ func analyzePushConsoleOutput(pushConsoleOutput string) {
 
 		fmt.Println("Processing output line: " + line)
 
-		lineWrapper := machineoutput.DevFileCommandWrapper{}
+		lineWrapper := machineoutput.MachineEventWrapper{}
 
 		err := json.Unmarshal([]byte(line), &lineWrapper)
 		Expect(err).NotTo(HaveOccurred())

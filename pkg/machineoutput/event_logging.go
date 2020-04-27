@@ -71,7 +71,7 @@ func NewConsoleMachineEventLoggingClient() *ConsoleMachineEventLoggingClient {
 // DevFileCommandExecutionBegin outputs the provided event as JSON to the console.
 func (c *ConsoleMachineEventLoggingClient) DevFileCommandExecutionBegin(commandName string, timestamp string) {
 
-	json := DevFileCommandWrapper{
+	json := MachineEventWrapper{
 		DevFileCommandExecutionBegin: &DevFileCommandExecutionBegin{
 			CommandName: commandName,
 			Timestamp:   timestamp,
@@ -84,7 +84,7 @@ func (c *ConsoleMachineEventLoggingClient) DevFileCommandExecutionBegin(commandN
 // DevFileCommandExecutionComplete outputs the provided event as JSON to the console.
 func (c *ConsoleMachineEventLoggingClient) DevFileCommandExecutionComplete(commandName string, timestamp string) {
 
-	json := DevFileCommandWrapper{
+	json := MachineEventWrapper{
 		DevFileCommandExecutionComplete: &DevFileCommandExecutionComplete{
 			CommandName: commandName,
 			Timestamp:   timestamp,
@@ -97,7 +97,7 @@ func (c *ConsoleMachineEventLoggingClient) DevFileCommandExecutionComplete(comma
 // DevFileActionExecutionBegin outputs the provided event as JSON to the console.
 func (c *ConsoleMachineEventLoggingClient) DevFileActionExecutionBegin(actionCommandString string, commandIndex int, commandName string, timestamp string) {
 
-	json := DevFileCommandWrapper{
+	json := MachineEventWrapper{
 		DevFileActionExecutionBegin: &DevFileActionExecutionBegin{
 			CommandName:         commandName,
 			ActionCommandString: actionCommandString,
@@ -118,7 +118,7 @@ func (c *ConsoleMachineEventLoggingClient) DevFileActionExecutionComplete(action
 		errorStr = errorVal.Error()
 	}
 
-	json := DevFileCommandWrapper{
+	json := MachineEventWrapper{
 		DevFileActionExecutionComplete: &DevFileActionExecutionComplete{
 			CommandName:         commandName,
 			ActionCommandString: actionCommandString,
@@ -135,7 +135,7 @@ func (c *ConsoleMachineEventLoggingClient) DevFileActionExecutionComplete(action
 // LogText outputs the provided event as JSON to the console.
 func (c *ConsoleMachineEventLoggingClient) LogText(text string, timestamp string) {
 
-	json := DevFileCommandWrapper{
+	json := MachineEventWrapper{
 		LogText: &LogText{
 			Text:      text,
 			Timestamp: timestamp,
@@ -146,7 +146,7 @@ func (c *ConsoleMachineEventLoggingClient) LogText(text string, timestamp string
 }
 
 // GetEntry will return the JSON event parsed from a single line of '-o json' machine readable console output.
-func (w DevFileCommandWrapper) GetEntry() (MachineEventLogEntry, error) {
+func (w MachineEventWrapper) GetEntry() (MachineEventLogEntry, error) {
 
 	if w.DevFileActionExecutionBegin != nil {
 		return w.DevFileActionExecutionBegin, nil

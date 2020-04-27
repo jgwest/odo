@@ -17,9 +17,9 @@ type MachineEventLoggingClient interface {
 	LogText(text string, timestamp string)
 }
 
-// DevFileCommandWrapper - a single line of machine-readable event console output must contain only one
-// of these commands; the DevFileCommandWrapper is used to create (and parse) these lines.
-type DevFileCommandWrapper struct {
+// MachineEventWrapper - a single line of machine-readable event console output must contain only one
+// of these commands; the MachineEventWrapper is used to create (and parse) these lines.
+type MachineEventWrapper struct {
 	DevFileCommandExecutionBegin    *DevFileCommandExecutionBegin    `json:"devFileCommandExecutionBegin,omitempty"`
 	DevFileCommandExecutionComplete *DevFileCommandExecutionComplete `json:"devFileCommandExecutionComplete,omitempty"`
 	DevFileActionExecutionBegin     *DevFileActionExecutionBegin     `json:"devFileActionExecutionBegin,omitempty"`
