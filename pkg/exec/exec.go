@@ -30,7 +30,7 @@ func ExecuteCommand(client ExecClient, compInfo common.ComponentInfo, command []
 		textChannel = createTextReceiverChannel(receiver)
 	}
 
-	glog.V(4).Infof("Executing command %v for pod: %v in container: %v", command, podName, containerName)
+	glog.V(4).Infof("Executing command %v for pod: %v in container: %v", command, compInfo.PodName, compInfo.ContainerName)
 
 	// This Go routine will automatically pipe the output from ExecCMDInContainer to
 	// our logger.

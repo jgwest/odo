@@ -329,6 +329,8 @@ func (a Adapter) execDevfile(pushDevfileCommands []versionsCommon.DevfileCommand
 		if (command.Name == string(common.DefaultDevfileBuildCommand) || command.Name == a.devfileBuildCmd) && buildRequired {
 			glog.V(3).Infof("Executing devfile command %v", command.Name)
 
+			a.machineEventLogger.DevFileCommandExecutionBegin(command.Name, machineoutput.TimestampNow())
+
 			for index, action := range command.Actions {
 				compInfo := common.ComponentInfo{
 					ContainerName: *action.Component,
@@ -358,6 +360,8 @@ func (a Adapter) execDevfile(pushDevfileCommands []versionsCommon.DevfileCommand
 			a.machineEventLogger.DevFileCommandExecutionBegin(command.Name, machineoutput.TimestampNow())
 
 			for index, action := range command.Actions {
+
+				a.machineEventLogger.DevFileActionExecutionBegin(*action.Command, index, command.Name, machineoutput.TimestampNow())
 
 				// Check if the devfile run component containers have supervisord as the entrypoint.
 				// Start the supervisord if the odo component does not exist
