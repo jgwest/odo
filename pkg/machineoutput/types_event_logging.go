@@ -14,6 +14,8 @@ type MachineEventLoggingClient interface {
 	DevFileActionExecutionBegin(actionCommandString string, commandIndex int, commandName string, timestamp string)
 	DevFileActionExecutionComplete(actionCommandString string, commandIndex int, commandName string, timestamp string, errorVal error)
 
+	ReportError(errorVal error, timestamp string)
+
 	LogText(text string, timestamp string)
 }
 
@@ -25,6 +27,7 @@ type MachineEventWrapper struct {
 	DevFileActionExecutionBegin     *DevFileActionExecutionBegin     `json:"devFileActionExecutionBegin,omitempty"`
 	DevFileActionExecutionComplete  *DevFileActionExecutionComplete  `json:"devFileActionExecutionComplete,omitempty"`
 	LogText                         *LogText                         `json:"logText,omitempty"`
+	ReportError                     *ReportError                     `json:"reportError,omitempty"`
 }
 
 // DevFileCommandExecutionBegin is the JSON event that is emitted when a dev file command begins execution.
@@ -56,6 +59,12 @@ type DevFileActionExecutionComplete struct {
 	Error               string `json:"error,omitempty"`
 }
 
+// ReportError is the JSON event that is emitted when an error occurs during push command
+type ReportError struct {
+	Timestamp string `json:"timestamp"`
+	Error     string `json:"error"`
+}
+
 // LogText is the JSON event that is emitted when a dev file action outputs text to the console.
 type LogText struct {
 	Text      string `json:"text"`
@@ -68,6 +77,7 @@ var _ MachineEventLogEntry = &DevFileCommandExecutionComplete{}
 var _ MachineEventLogEntry = &DevFileActionExecutionBegin{}
 var _ MachineEventLogEntry = &DevFileActionExecutionComplete{}
 var _ MachineEventLogEntry = &LogText{}
+var _ MachineEventLogEntry = &ReportError{}
 
 // MachineEventLogEntry contains the expected methods for every event that is emitted.
 // (This is mainly used for test purposes.)

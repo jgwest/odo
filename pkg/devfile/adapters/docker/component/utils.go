@@ -356,9 +356,12 @@ func (a Adapter) execDevfile(pushDevfileCommands []versionsCommon.DevfileCommand
 
 				a.machineEventLogger.DevFileActionExecutionComplete(*action.Command, index, command.Name, machineoutput.TimestampNow(), err)
 				if err != nil {
+					a.machineEventLogger.ReportError(err, machineoutput.TimestampNow())
 					return err
 				}
 			}
+
+			a.machineEventLogger.DevFileCommandExecutionComplete(command.Name, machineoutput.TimestampNow())
 
 			// Reset the for loop counter and iterate through all the devfile commands again for others
 			i = -1
@@ -385,6 +388,7 @@ func (a Adapter) execDevfile(pushDevfileCommands []versionsCommon.DevfileCommand
 				if !componentExists {
 					err = a.InitRunContainerSupervisord(*action.Component, containers)
 					if err != nil {
+						a.machineEventLogger.ReportError(err, machineoutput.TimestampNow())
 						return
 					}
 				}
@@ -392,7 +396,7 @@ func (a Adapter) execDevfile(pushDevfileCommands []versionsCommon.DevfileCommand
 				err = exec.ExecuteDevfileRunAction(&a.Client, action, command.Name, compInfo, show, outputReceiver)
 				a.machineEventLogger.DevFileActionExecutionComplete(*action.Command, index, command.Name, machineoutput.TimestampNow(), err)
 				if err != nil {
-					a.machineEventLogger.DevFileCommandExecutionComplete(command.Name, machineoutput.TimestampNow())
+					a.machineEventLogger.ReportError(err, machineoutput.TimestampNow())
 					return err
 				}
 			}

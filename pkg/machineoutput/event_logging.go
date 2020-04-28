@@ -62,6 +62,9 @@ func (c *NoOpMachineEventLoggingClient) DevFileActionExecutionComplete(actionCom
 // LogText ignores the provided event.
 func (c *NoOpMachineEventLoggingClient) LogText(text string, timestamp string) {}
 
+// ReportError ignores the provided event.
+func (c *NoOpMachineEventLoggingClient) ReportError(errorVal error, timestamp string) {}
+
 // NewConsoleMachineEventLoggingClient creates a new instance of ConsoleMachineEventLoggingClient,
 // which will output event as JSON to the console.
 func NewConsoleMachineEventLoggingClient() *ConsoleMachineEventLoggingClient {
@@ -145,6 +148,18 @@ func (c *ConsoleMachineEventLoggingClient) LogText(text string, timestamp string
 	OutputSuccessUnindented(json)
 }
 
+// ReportError ignores the provided event.
+func (c *ConsoleMachineEventLoggingClient) ReportError(errorVal error, timestamp string) {
+	json := MachineEventWrapper{
+		ReportError: &ReportError{
+			Error:     errorVal.Error(),
+			Timestamp: timestamp,
+		},
+	}
+
+	OutputSuccessUnindented(json)
+}
+
 // GetEntry will return the JSON event parsed from a single line of '-o json' machine readable console output.
 func (w MachineEventWrapper) GetEntry() (MachineEventLogEntry, error) {
 
@@ -162,6 +177,9 @@ func (w MachineEventWrapper) GetEntry() (MachineEventLogEntry, error) {
 
 	} else if w.LogText != nil {
 		return w.LogText, nil
+
+	} else if w.ReportError != nil {
+		return w.ReportError, nil
 
 	} else {
 		return nil, errors.New("unexpected machine event log entry")
@@ -183,6 +201,9 @@ func (c DevFileActionExecutionComplete) GetTimestamp() string { return c.Timesta
 
 // GetTimestamp returns the timestamp element for this event.
 func (c LogText) GetTimestamp() string { return c.Timestamp }
+
+// GetTimestamp returns the timestamp element for this event.
+func (c ReportError) GetTimestamp() string { return c.Timestamp }
 
 // GetType returns the event type for this event.
 func (c DevFileCommandExecutionBegin) GetType() MachineEventLogEntryType {
@@ -207,6 +228,9 @@ func (c DevFileActionExecutionComplete) GetType() MachineEventLogEntryType {
 // GetType returns the event type for this event.
 func (c LogText) GetType() MachineEventLogEntryType { return TypeLogText }
 
+// GetType returns the event type for this event.
+func (c ReportError) GetType() MachineEventLogEntryType { return TypeReportError }
+
 // MachineEventLogEntryType indicates the machine-readable event type from an ODO operation
 type MachineEventLogEntryType int
 
@@ -221,6 +245,8 @@ const (
 	TypeDevFileActionExecutionComplete MachineEventLogEntryType = 3
 	// TypeLogText is the entry type for that event.
 	TypeLogText MachineEventLogEntryType = 4
+	// TypeReportError is the entry type for that event.
+	TypeReportError MachineEventLogEntryType = 5
 )
 
 // GetCommandName returns a command if the MLE supports that field (otherwise empty string is returned).

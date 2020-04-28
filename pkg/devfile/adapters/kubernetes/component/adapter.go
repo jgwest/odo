@@ -327,7 +327,7 @@ func (a Adapter) execDevfile(pushDevfileCommands []versionsCommon.DevfileCommand
 
 		// Exec the devBuild command if buildRequired is true
 		if (command.Name == string(common.DefaultDevfileBuildCommand) || command.Name == a.devfileBuildCmd) && buildRequired {
-			glog.V(3).Infof("Executing devfile command %v", command.Name)
+			glog.V(4).Infof("Executing devfile command %v", command.Name)
 
 			a.machineEventLogger.DevFileCommandExecutionBegin(command.Name, machineoutput.TimestampNow())
 
@@ -343,6 +343,7 @@ func (a Adapter) execDevfile(pushDevfileCommands []versionsCommon.DevfileCommand
 
 				a.machineEventLogger.DevFileActionExecutionComplete(*action.Command, index, command.Name, machineoutput.TimestampNow(), err)
 				if err != nil {
+					a.machineEventLogger.ReportError(err, machineoutput.TimestampNow())
 					return err
 				}
 			}
@@ -368,6 +369,7 @@ func (a Adapter) execDevfile(pushDevfileCommands []versionsCommon.DevfileCommand
 				if !componentExists {
 					err = a.InitRunContainerSupervisord(*action.Component, podName, containers)
 					if err != nil {
+						a.machineEventLogger.ReportError(err, machineoutput.TimestampNow())
 						return
 					}
 				}
@@ -381,7 +383,7 @@ func (a Adapter) execDevfile(pushDevfileCommands []versionsCommon.DevfileCommand
 
 				a.machineEventLogger.DevFileActionExecutionComplete(*action.Command, index, command.Name, machineoutput.TimestampNow(), err)
 				if err != nil {
-					a.machineEventLogger.DevFileCommandExecutionComplete(command.Name, machineoutput.TimestampNow())
+					a.machineEventLogger.ReportError(err, machineoutput.TimestampNow())
 					return err
 				}
 			}
