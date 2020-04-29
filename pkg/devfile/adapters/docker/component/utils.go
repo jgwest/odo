@@ -22,6 +22,7 @@ import (
 	"github.com/openshift/odo/pkg/exec"
 	"github.com/openshift/odo/pkg/lclient"
 	"github.com/openshift/odo/pkg/log"
+	"github.com/openshift/odo/pkg/machineoutput"
 )
 
 // LocalhostIP is the IP address for localhost
@@ -331,6 +332,8 @@ func (a Adapter) execDevfile(pushDevfileCommands []versionsCommon.DevfileCommand
 		return err
 	}
 
+	outputReceiver := machineoutput.NewMachineEventContainerOutputReceiver(&a.machineEventLogger)
+
 	for i := 0; i < len(pushDevfileCommands); i++ {
 		command := pushDevfileCommands[i]
 
@@ -338,18 +341,27 @@ func (a Adapter) execDevfile(pushDevfileCommands []versionsCommon.DevfileCommand
 		if (command.Name == string(common.DefaultDevfileBuildCommand) || command.Name == a.devfileBuildCmd) && buildRequired {
 			glog.V(3).Infof("Executing devfile command %v", command.Name)
 
-			for _, action := range command.Actions {
+			a.machineEventLogger.DevFileCommandExecutionBegin(command.Name, machineoutput.TimestampNow())
+
+			for index, action := range command.Actions {
 				// Get the containerID
 				containerID := utils.GetContainerIDForAlias(containers, *action.Component)
 				compInfo := common.ComponentInfo{
 					ContainerName: containerID,
 				}
 
-				err = exec.ExecuteDevfileBuildAction(&a.Client, action, command.Name, compInfo, show)
+				a.machineEventLogger.DevFileActionExecutionBegin(*action.Command, index, command.Name, machineoutput.TimestampNow())
+
+				err = exec.ExecuteDevfileBuildAction(&a.Client, action, command.Name, compInfo, show, outputReceiver)
+
+				a.machineEventLogger.DevFileActionExecutionComplete(*action.Command, index, command.Name, machineoutput.TimestampNow(), err)
 				if err != nil {
+					a.machineEventLogger.ReportError(err, machineoutput.TimestampNow())
 					return err
 				}
 			}
+
+			a.machineEventLogger.DevFileCommandExecutionComplete(command.Name, machineoutput.TimestampNow())
 
 			// Reset the for loop counter and iterate through all the devfile commands again for others
 			i = -1
@@ -359,7 +371,11 @@ func (a Adapter) execDevfile(pushDevfileCommands []versionsCommon.DevfileCommand
 			// Always check for buildRequired is false, since the command may be iterated out of order and we always want to execute devBuild first if buildRequired is true. If buildRequired is false, then we don't need to build and we can execute the devRun command
 			glog.V(3).Infof("Executing devfile command %v", command.Name)
 
-			for _, action := range command.Actions {
+			a.machineEventLogger.DevFileCommandExecutionBegin(command.Name, machineoutput.TimestampNow())
+
+			for index, action := range command.Actions {
+
+				a.machineEventLogger.DevFileActionExecutionBegin(*action.Command, index, command.Name, machineoutput.TimestampNow())
 
 				// Get the containerID
 				containerID := utils.GetContainerIDForAlias(containers, *action.Component)
@@ -372,15 +388,20 @@ func (a Adapter) execDevfile(pushDevfileCommands []versionsCommon.DevfileCommand
 				if !componentExists {
 					err = a.InitRunContainerSupervisord(*action.Component, containers)
 					if err != nil {
+						a.machineEventLogger.ReportError(err, machineoutput.TimestampNow())
 						return
 					}
 				}
 
-				err = exec.ExecuteDevfileRunAction(&a.Client, action, command.Name, compInfo, show)
+				err = exec.ExecuteDevfileRunAction(&a.Client, action, command.Name, compInfo, show, outputReceiver)
+				a.machineEventLogger.DevFileActionExecutionComplete(*action.Command, index, command.Name, machineoutput.TimestampNow(), err)
 				if err != nil {
+					a.machineEventLogger.ReportError(err, machineoutput.TimestampNow())
 					return err
 				}
 			}
+
+			a.machineEventLogger.DevFileCommandExecutionComplete(command.Name, machineoutput.TimestampNow())
 		}
 	}
 
@@ -396,7 +417,7 @@ func (a Adapter) InitRunContainerSupervisord(component string, containers []type
 			compInfo := common.ComponentInfo{
 				ContainerName: container.ID,
 			}
-			err = exec.ExecuteCommand(&a.Client, compInfo, command, true)
+			err = exec.ExecuteCommand(&a.Client, compInfo, command, true, nil)
 		}
 	}
 

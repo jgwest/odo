@@ -13,14 +13,25 @@ import (
 	"github.com/openshift/odo/pkg/devfile/adapters/docker/utils"
 	"github.com/openshift/odo/pkg/lclient"
 	"github.com/openshift/odo/pkg/log"
+	"github.com/openshift/odo/pkg/machineoutput"
 	"github.com/openshift/odo/pkg/sync"
 )
 
 // New instantiantes a component adapter
 func New(adapterContext common.AdapterContext, client lclient.Client) Adapter {
+
+	var loggingClient machineoutput.MachineEventLoggingClient
+
+	if log.IsJSON() {
+		loggingClient = machineoutput.NewConsoleMachineEventLoggingClient()
+	} else {
+		loggingClient = machineoutput.NewNoOpMachineEventLoggingClient()
+	}
+
 	return Adapter{
-		Client:         client,
-		AdapterContext: adapterContext,
+		Client:             client,
+		AdapterContext:     adapterContext,
+		machineEventLogger: loggingClient,
 	}
 }
 
@@ -35,6 +46,7 @@ type Adapter struct {
 	devfileBuildCmd           string
 	devfileRunCmd             string
 	supervisordVolumeName     string
+	machineEventLogger        machineoutput.MachineEventLoggingClient
 }
 
 // Push updates the component if a matching component exists or creates one if it doesn't exist

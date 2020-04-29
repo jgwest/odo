@@ -88,6 +88,25 @@ var _ = Describe("odo devfile push command tests", func() {
 			helper.CmdShouldPass("odo", "push", "--devfile", "devfile.yaml", "--project", namespace)
 		})
 
+		It("checks that odo push with -o json displays machine readable JSON event output", func() {
+			helper.CmdShouldPass("git", "clone", "https://github.com/che-samples/web-nodejs-sample.git", projectDirPath)
+			helper.Chdir(projectDirPath)
+
+			helper.CmdShouldPass("odo", "create", "nodejs", "--project", namespace, cmpName)
+
+			helper.CopyExample(filepath.Join("source", "devfiles", "nodejs"), projectDirPath)
+
+			output := helper.CmdShouldPass("odo", "push", "-o", "json", "--devfile", "devfile.yaml", "--namespace", namespace)
+
+			utils.AnalyzePushConsoleOutput(output)
+
+			// update devfile and push again
+			helper.ReplaceString("devfile.yaml", "name: FOO", "name: BAR")
+			output = helper.CmdShouldPass("odo", "push", "-o", "json", "--devfile", "devfile.yaml", "--namespace", namespace)
+			utils.AnalyzePushConsoleOutput(output)
+
+		})
+
 	})
 
 	Context("When devfile push command is executed", func() {
