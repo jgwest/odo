@@ -30,6 +30,18 @@ type GenericSuccess struct {
 	Message           string `json:"message"`
 }
 
+// OutputSuccessUnindented outputs a "successful" machine-readable output format in unindented json
+func OutputSuccessUnindented(machineOutput interface{}) {
+	printableOutput, err := json.Marshal(machineOutput)
+
+	// If we error out... there's no way to output it (since we disable logging when using -o json)
+	if err != nil {
+		fmt.Fprintf(log.GetStderr(), "Unable to unmarshal JSON: %s\n", err.Error())
+	} else {
+		fmt.Fprintf(log.GetStdout(), "%s\n", string(printableOutput))
+	}
+}
+
 // OutputSuccess outputs a "successful" machine-readable output format in json
 func OutputSuccess(machineOutput interface{}) {
 	printableOutput, err := MarshalJSONIndented(machineOutput)

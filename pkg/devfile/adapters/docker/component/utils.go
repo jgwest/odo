@@ -22,6 +22,7 @@ import (
 	"github.com/openshift/odo/pkg/exec"
 	"github.com/openshift/odo/pkg/lclient"
 	"github.com/openshift/odo/pkg/log"
+	"github.com/openshift/odo/pkg/machineoutput"
 )
 
 const (
@@ -351,6 +352,7 @@ func (a Adapter) execDevfile(pushDevfileCommands []versionsCommon.DevfileCommand
 	}
 
 	commandOrder := []common.CommandNames{}
+	outputReceiver := machineoutput.NewMachineEventContainerOutputReceiver(&a.machineEventLogger)
 
 	// Only add runinit to the expected commands if the component doesn't already exist
 	// This would be the case when first running the container
@@ -369,19 +371,25 @@ func (a Adapter) execDevfile(pushDevfileCommands []versionsCommon.DevfileCommand
 		for _, command := range pushDevfileCommands {
 			// If the current command from the devfile is the currently expected command from the devfile
 			if command.Name == currentCommand.DefaultName || command.Name == currentCommand.AdapterName {
+				a.machineEventLogger.DevFileCommandExecutionBegin(command.Name, machineoutput.TimestampNow())
+
 				// If the current command is not the last command in the slice
 				// it is not expected to be the run command
 				if i < len(commandOrder)-1 {
 					// Any exec command such as "Init" and "Build"
 
-					for _, action := range command.Actions {
+					for actionIndex, action := range command.Actions {
 						containerID := utils.GetContainerIDForAlias(containers, *action.Component)
 						compInfo := common.ComponentInfo{
 							ContainerName: containerID,
 						}
 
-						err = exec.ExecuteDevfileBuildAction(&a.Client, action, command.Name, compInfo, show)
+						a.machineEventLogger.DevFileCommandExecutionBegin(command.Name, machineoutput.TimestampNow())
+						err = exec.ExecuteDevfileBuildAction(&a.Client, action, command.Name, compInfo, show, outputReceiver)
+						a.machineEventLogger.DevFileActionExecutionComplete(*action.Command, actionIndex, command.Name, machineoutput.TimestampNow(), err)
+
 						if err != nil {
+							a.machineEventLogger.ReportError(err, machineoutput.TimestampNow())
 							return err
 						}
 					}
@@ -392,13 +400,14 @@ func (a Adapter) execDevfile(pushDevfileCommands []versionsCommon.DevfileCommand
 					// Last command is "Run"
 					klog.V(4).Infof("Executing devfile command %v", command.Name)
 
-					for _, action := range command.Actions {
+					for actionIndex, action := range command.Actions {
 
 						// Check if the devfile run component containers have supervisord as the entrypoint.
 						// Start the supervisord if the odo component does not exist
 						if !componentExists {
 							err = a.InitRunContainerSupervisord(*action.Component, containers)
 							if err != nil {
+								a.machineEventLogger.ReportError(err, machineoutput.TimestampNow())
 								return
 							}
 						}
@@ -410,16 +419,26 @@ func (a Adapter) execDevfile(pushDevfileCommands []versionsCommon.DevfileCommand
 
 						if componentExists && !common.IsRestartRequired(command) {
 							klog.V(4).Info("restart:false, Not restarting DevRun Command")
-							err = exec.ExecuteDevfileRunActionWithoutRestart(&a.Client, action, command.Name, compInfo, show)
+							err = exec.ExecuteDevfileRunActionWithoutRestart(&a.Client, action, command.Name, compInfo, show, outputReceiver)
+
+							if err != nil {
+								a.machineEventLogger.ReportError(err, machineoutput.TimestampNow())
+							} else {
+								a.machineEventLogger.DevFileActionExecutionComplete(*action.Command, actionIndex, command.Name, machineoutput.TimestampNow(), err)
+								a.machineEventLogger.DevFileCommandExecutionComplete(command.Name, machineoutput.TimestampNow())
+							}
+
 							return
 						}
 
-						err = exec.ExecuteDevfileRunAction(&a.Client, action, command.Name, compInfo, show)
-
+						err = exec.ExecuteDevfileRunAction(&a.Client, action, command.Name, compInfo, show, outputReceiver)
+						a.machineEventLogger.DevFileActionExecutionComplete(*action.Command, actionIndex, command.Name, machineoutput.TimestampNow(), err)
 					}
 				}
 
+				a.machineEventLogger.DevFileCommandExecutionComplete(command.Name, machineoutput.TimestampNow())
 			}
+
 		}
 	}
 
@@ -435,7 +454,7 @@ func (a Adapter) InitRunContainerSupervisord(component string, containers []type
 			compInfo := common.ComponentInfo{
 				ContainerName: container.ID,
 			}
-			err = exec.ExecuteCommand(&a.Client, compInfo, command, true)
+			err = exec.ExecuteCommand(&a.Client, compInfo, command, true, nil)
 		}
 	}
 

@@ -21,15 +21,26 @@ import (
 	"github.com/openshift/odo/pkg/exec"
 	"github.com/openshift/odo/pkg/kclient"
 	"github.com/openshift/odo/pkg/log"
+	"github.com/openshift/odo/pkg/machineoutput"
 	odoutil "github.com/openshift/odo/pkg/odo/util"
 	"github.com/openshift/odo/pkg/sync"
 )
 
 // New instantiantes a component adapter
 func New(adapterContext common.AdapterContext, client kclient.Client) Adapter {
+
+	var loggingClient machineoutput.MachineEventLoggingClient
+
+	if log.IsJSON() {
+		loggingClient = machineoutput.NewConsoleMachineEventLoggingClient()
+	} else {
+		loggingClient = machineoutput.NewNoOpMachineEventLoggingClient()
+	}
+
 	return Adapter{
-		Client:         client,
-		AdapterContext: adapterContext,
+		Client:             client,
+		AdapterContext:     adapterContext,
+		machineEventLogger: loggingClient,
 	}
 }
 
@@ -37,9 +48,10 @@ func New(adapterContext common.AdapterContext, client kclient.Client) Adapter {
 type Adapter struct {
 	Client kclient.Client
 	common.AdapterContext
-	devfileInitCmd  string
-	devfileBuildCmd string
-	devfileRunCmd   string
+	devfileInitCmd     string
+	devfileBuildCmd    string
+	devfileRunCmd      string
+	machineEventLogger machineoutput.MachineEventLoggingClient
 }
 
 // Push updates the component if a matching component exists or creates one if it doesn't exist
@@ -324,27 +336,39 @@ func (a Adapter) execDevfile(pushDevfileCommands []versionsCommon.DevfileCommand
 		common.CommandNames{DefaultName: string(common.DefaultDevfileRunCommand), AdapterName: a.devfileRunCmd},
 	)
 
+	outputReceiver := machineoutput.NewMachineEventContainerOutputReceiver(&a.machineEventLogger)
+
 	// Loop through each of the expected commands in the devfile
 	for i, currentCommand := range commandOrder {
 		// Loop through each of the command given from the devfile
 		for _, command := range pushDevfileCommands {
 			// If the current command from the devfile is the currently expected command from the devfile
 			if command.Name == currentCommand.DefaultName || command.Name == currentCommand.AdapterName {
+
+				a.machineEventLogger.DevFileCommandExecutionBegin(command.Name, machineoutput.TimestampNow())
+
 				// If the current command is not the last command in the slice
 				// it is not expected to be the run command
 				if i < len(commandOrder)-1 {
 					// Any exec command such as "Init" and "Build"
 
-					for _, action := range command.Actions {
+					for actionIndex, action := range command.Actions {
 						compInfo := common.ComponentInfo{
 							ContainerName: *action.Component,
 							PodName:       podName,
 						}
 
-						err = exec.ExecuteDevfileBuildAction(&a.Client, action, command.Name, compInfo, show)
+						a.machineEventLogger.DevFileActionExecutionBegin(*action.Command, actionIndex, command.Name, machineoutput.TimestampNow())
+
+						err = exec.ExecuteDevfileBuildAction(&a.Client, action, command.Name, compInfo, show, outputReceiver)
+
+						a.machineEventLogger.DevFileActionExecutionComplete(*action.Command, actionIndex, command.Name, machineoutput.TimestampNow(), err)
+
 						if err != nil {
+							a.machineEventLogger.ReportError(err, machineoutput.TimestampNow())
 							return err
 						}
+
 					}
 
 					// If the current command is the last command in the slice
@@ -353,7 +377,7 @@ func (a Adapter) execDevfile(pushDevfileCommands []versionsCommon.DevfileCommand
 					// Last command is "Run"
 					klog.V(4).Infof("Executing devfile command %v", command.Name)
 
-					for _, action := range command.Actions {
+					for actionIndex, action := range command.Actions {
 
 						// Check if the devfile run component containers have supervisord as the entrypoint.
 						// Start the supervisord if the odo component does not exist
@@ -371,14 +395,32 @@ func (a Adapter) execDevfile(pushDevfileCommands []versionsCommon.DevfileCommand
 
 						if componentExists && !common.IsRestartRequired(command) {
 							klog.V(4).Infof("restart:false, Not restarting DevRun Command")
-							err = exec.ExecuteDevfileRunActionWithoutRestart(&a.Client, action, command.Name, compInfo, show)
+
+							a.machineEventLogger.DevFileActionExecutionBegin(*action.Command, actionIndex, command.Name, machineoutput.TimestampNow())
+
+							err = exec.ExecuteDevfileRunActionWithoutRestart(&a.Client, action, command.Name, compInfo, show, outputReceiver)
+
+							if err != nil {
+								a.machineEventLogger.ReportError(err, machineoutput.TimestampNow())
+							} else {
+								a.machineEventLogger.DevFileActionExecutionComplete(*action.Command, actionIndex, command.Name, machineoutput.TimestampNow(), err)
+								a.machineEventLogger.DevFileCommandExecutionComplete(command.Name, machineoutput.TimestampNow())
+							}
+
 							return
 						}
 
-						err = exec.ExecuteDevfileRunAction(&a.Client, action, command.Name, compInfo, show)
+						a.machineEventLogger.DevFileActionExecutionBegin(*action.Command, actionIndex, command.Name, machineoutput.TimestampNow())
+
+						err = exec.ExecuteDevfileRunAction(&a.Client, action, command.Name, compInfo, show, outputReceiver)
+
+						a.machineEventLogger.DevFileActionExecutionComplete(*action.Command, actionIndex, command.Name, machineoutput.TimestampNow(), err)
 					}
 				}
+
+				a.machineEventLogger.DevFileCommandExecutionComplete(command.Name, machineoutput.TimestampNow())
 			}
+
 		}
 	}
 
@@ -395,7 +437,7 @@ func (a Adapter) InitRunContainerSupervisord(containerName, podName string, cont
 				ContainerName: containerName,
 				PodName:       podName,
 			}
-			err = exec.ExecuteCommand(&a.Client, compInfo, command, true)
+			err = exec.ExecuteCommand(&a.Client, compInfo, command, true, nil)
 		}
 	}
 

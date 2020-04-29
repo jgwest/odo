@@ -97,6 +97,46 @@ var _ = Describe("odo devfile push command tests", func() {
 			utils.ExecPushToTestFileChanges(context, cmpName, namespace)
 		})
 
+		It("checks that odo push with -o json displays machine readable JSON event output", func() {
+
+			helper.CmdShouldPass("odo", "create", "nodejs", "--project", namespace, cmpName)
+
+			helper.CopyExample(filepath.Join("source", "devfiles", "nodejs", "project"), context)
+			helper.CopyExampleDevFile(filepath.Join("source", "devfiles", "nodejs", "devfile.yaml"), filepath.Join(context, "devfile.yaml"))
+
+			output := helper.CmdShouldPass("odo", "push", "--devfile", "devfile.yaml", "--project", namespace)
+			Expect(output).To(ContainSubstring("Changes successfully pushed to component"))
+			utils.AnalyzePushConsoleOutput(output)
+
+			// update devfile and push again
+			helper.ReplaceString("devfile.yaml", "name: FOO", "name: BAR")
+			output = helper.CmdShouldPass("odo", "push", "--devfile", "devfile.yaml", "--project", namespace)
+			utils.AnalyzePushConsoleOutput(output)
+
+		})
+
+		// It("checks that odo push with -o json displays machine readable JSON event output", func() {
+		// 	// helper.CmdShouldPass("odo", "create", "nodejs", "--project", namespace, cmpName)
+		// 	// helper.Chdir(currentWorkingDirectory)
+
+		// 	helper.CmdShouldPass("git", "clone", "https://github.com/che-samples/web-nodejs-sample.git", projectDirPath)
+		// 	helper.Chdir(projectDirPath)
+
+		// 	helper.CmdShouldPass("odo", "create", "nodejs", "--project", namespace, cmpName)
+
+		// 	helper.CopyExample(filepath.Join("source", "devfiles", "nodejs"), projectDirPath)
+
+		// 	output := helper.CmdShouldPass("odo", "push", "-o", "json", "--devfile", "devfile.yaml", "--namespace", namespace)
+
+		// 	utils.AnalyzePushConsoleOutput(output)
+
+		// 	// update devfile and push again
+		// 	helper.ReplaceString("devfile.yaml", "name: FOO", "name: BAR")
+		// 	output = helper.CmdShouldPass("odo", "push", "-o", "json", "--devfile", "devfile.yaml", "--namespace", namespace)
+		// 	utils.AnalyzePushConsoleOutput(output)
+
+		// })
+
 		It("should be able to create a file, push, delete, then push again propagating the deletions", func() {
 			newFilePath := filepath.Join(context, "foobar.txt")
 			newDirPath := filepath.Join(context, "testdir")
