@@ -20,7 +20,7 @@ func CopyKubeConfigFile(kubeConfigFile, tempConfigFile string) string {
 
 // CreateRandNamespace create new project with random name in kubernetes cluster (10 letters)
 func CreateRandNamespace(context string) string {
-	projectName := RandString(10)
+	projectName := UniqueRandString(10)
 	fmt.Fprintf(GinkgoWriter, "Creating a new project: %s\n", projectName)
 	CmdShouldPass("kubectl", "create", "namespace", projectName)
 	CmdShouldPass("kubectl", "config", "set-context", context, "--namespace", projectName)

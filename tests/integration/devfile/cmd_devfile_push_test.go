@@ -18,31 +18,38 @@ var _ = Describe("odo devfile push command tests", func() {
 	var projectDir = "/projectDir"
 	var sourcePath = "/projects/nodejs-web-app"
 
-	// TODO: all oc commands in all devfile related test should get replaced by kubectl
-	// TODO: to goal is not to use "oc"
-	oc := helper.NewOcRunner("oc")
+	var oc helper.CliRunner = helper.NewKubectlRunner("kubectl")
 
 	// This is run after every Spec (It)
 	var _ = BeforeEach(func() {
+
 		SetDefaultEventuallyTimeout(10 * time.Minute)
-		namespace = helper.CreateRandProject()
 		context = helper.CreateNewContext()
-		currentWorkingDirectory = helper.Getwd()
-		projectDirPath = context + projectDir
-		cmpName = helper.RandString(6)
-
-		helper.Chdir(context)
-
 		os.Setenv("GLOBALODOCONFIG", filepath.Join(context, "config.yaml"))
+		if os.Getenv("KUBERNETES") == "true" {
+			namespace = helper.CreateRandNamespace(context)
+		} else {
+			namespace = helper.CreateRandProject()
+		}
+		currentWorkingDirectory = helper.Getwd()
+		helper.Chdir(context)
 
 		// Devfile push requires experimental mode to be set
 		helper.CmdShouldPass("odo", "preference", "set", "Experimental", "true")
+
+		projectDirPath = context + projectDir
+		cmpName = helper.RandString(6)
+
 	})
 
 	// Clean up after the test
 	// This is run after every Spec (It)
 	var _ = AfterEach(func() {
-		helper.DeleteProject(namespace)
+		if os.Getenv("KUBERNETES") == "true" {
+			helper.DeleteNamespace(namespace)
+		} else {
+			helper.DeleteProject(namespace)
+		}
 		helper.Chdir(currentWorkingDirectory)
 		helper.DeleteDir(context)
 		os.Unsetenv("GLOBALODOCONFIG")
