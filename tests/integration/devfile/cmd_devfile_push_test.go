@@ -24,12 +24,18 @@ var _ = Describe("odo devfile push command tests", func() {
 	// This is run after every Spec (It)
 	var _ = BeforeEach(func() {
 		SetDefaultEventuallyTimeout(10 * time.Minute)
-		namespace = helper.CreateRandProject()
 		context = helper.CreateNewContext()
 		currentWorkingDirectory = helper.Getwd()
 		cmpName = helper.RandString(6)
 
 		helper.Chdir(context)
+
+		if os.Getenv("KUBERNETES") == "true" {
+			kubeConfigFile := helper.CopyKubeConfigFile(helper.GetExistingKubeConfigPath(), filepath.Join(context, "config"))
+			namespace = helper.CreateRandNamespace(kubeConfigFile)
+		} else {
+			namespace = helper.CreateRandProject()
+		}
 
 		os.Setenv("GLOBALODOCONFIG", filepath.Join(context, "config.yaml"))
 
@@ -40,7 +46,13 @@ var _ = Describe("odo devfile push command tests", func() {
 	// Clean up after the test
 	// This is run after every Spec (It)
 	var _ = AfterEach(func() {
-		helper.DeleteProject(namespace)
+		if os.Getenv("KUBERNETES") == "true" {
+			helper.DeleteNamespace(namespace)
+			os.Unsetenv("KUBECONFIG")
+		} else {
+			helper.DeleteProject(namespace)
+		}
+
 		helper.Chdir(currentWorkingDirectory)
 		helper.DeleteDir(context)
 		os.Unsetenv("GLOBALODOCONFIG")
@@ -104,38 +116,15 @@ var _ = Describe("odo devfile push command tests", func() {
 			helper.CopyExample(filepath.Join("source", "devfiles", "nodejs", "project"), context)
 			helper.CopyExampleDevFile(filepath.Join("source", "devfiles", "nodejs", "devfile.yaml"), filepath.Join(context, "devfile.yaml"))
 
-			output := helper.CmdShouldPass("odo", "push", "--devfile", "devfile.yaml", "--project", namespace)
-			Expect(output).To(ContainSubstring("Changes successfully pushed to component"))
+			output := helper.CmdShouldPass("odo", "push", "-o", "json", "--devfile", "devfile.yaml", "--project", namespace)
 			utils.AnalyzePushConsoleOutput(output)
 
 			// update devfile and push again
 			helper.ReplaceString("devfile.yaml", "name: FOO", "name: BAR")
-			output = helper.CmdShouldPass("odo", "push", "--devfile", "devfile.yaml", "--project", namespace)
+			output = helper.CmdShouldPass("odo", "push", "-o", "json", "--devfile", "devfile.yaml", "--project", namespace)
 			utils.AnalyzePushConsoleOutput(output)
 
 		})
-
-		// It("checks that odo push with -o json displays machine readable JSON event output", func() {
-		// 	// helper.CmdShouldPass("odo", "create", "nodejs", "--project", namespace, cmpName)
-		// 	// helper.Chdir(currentWorkingDirectory)
-
-		// 	helper.CmdShouldPass("git", "clone", "https://github.com/che-samples/web-nodejs-sample.git", projectDirPath)
-		// 	helper.Chdir(projectDirPath)
-
-		// 	helper.CmdShouldPass("odo", "create", "nodejs", "--project", namespace, cmpName)
-
-		// 	helper.CopyExample(filepath.Join("source", "devfiles", "nodejs"), projectDirPath)
-
-		// 	output := helper.CmdShouldPass("odo", "push", "-o", "json", "--devfile", "devfile.yaml", "--namespace", namespace)
-
-		// 	utils.AnalyzePushConsoleOutput(output)
-
-		// 	// update devfile and push again
-		// 	helper.ReplaceString("devfile.yaml", "name: FOO", "name: BAR")
-		// 	output = helper.CmdShouldPass("odo", "push", "-o", "json", "--devfile", "devfile.yaml", "--namespace", namespace)
-		// 	utils.AnalyzePushConsoleOutput(output)
-
-		// })
 
 		It("should be able to create a file, push, delete, then push again propagating the deletions", func() {
 			newFilePath := filepath.Join(context, "foobar.txt")
