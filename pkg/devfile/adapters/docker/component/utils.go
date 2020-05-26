@@ -384,8 +384,10 @@ func (a Adapter) execDevfile(pushDevfileCommands []versionsCommon.DevfileCommand
 							ContainerName: containerID,
 						}
 
-						a.machineEventLogger.DevFileCommandExecutionBegin(command.Name, machineoutput.TimestampNow())
+						a.machineEventLogger.DevFileActionExecutionBegin(*action.Command, actionIndex, command.Name, machineoutput.TimestampNow())
+
 						err = exec.ExecuteDevfileBuildAction(&a.Client, action, command.Name, compInfo, show, outputReceiver)
+
 						a.machineEventLogger.DevFileActionExecutionComplete(*action.Command, actionIndex, command.Name, machineoutput.TimestampNow(), err)
 
 						if err != nil {
@@ -416,6 +418,8 @@ func (a Adapter) execDevfile(pushDevfileCommands []versionsCommon.DevfileCommand
 						compInfo := common.ComponentInfo{
 							ContainerName: containerID,
 						}
+
+						a.machineEventLogger.DevFileActionExecutionBegin(*action.Command, actionIndex, command.Name, machineoutput.TimestampNow())
 
 						if componentExists && !common.IsRestartRequired(command) {
 							klog.V(4).Info("restart:false, Not restarting DevRun Command")
