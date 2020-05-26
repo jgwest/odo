@@ -1,12 +1,12 @@
 package machineoutput
 
 import (
+	"bufio"
 	"errors"
 	"fmt"
+	"io"
 	"strconv"
 	"time"
-
-	"github.com/openshift/odo/pkg/exec"
 )
 
 // formatTime returns time in UTC Unix Epoch Seconds and then the microsecond portion of that time.
@@ -19,22 +19,6 @@ func formatTime(time time.Time) string {
 // TimestampNow returns timestamp in format of (seconds since UTC Unix epoch).(microseconds time component)
 func TimestampNow() string {
 	return formatTime(time.Now())
-}
-
-// NewMachineEventContainerOutputReceiver creates a new instance of MachineEventContainerOutputReceiver
-func NewMachineEventContainerOutputReceiver(client *MachineEventLoggingClient) *MachineEventContainerOutputReceiver {
-
-	return &MachineEventContainerOutputReceiver{
-		client,
-	}
-
-}
-
-// ReceiveText will receive container console output and pass it to the contained client.
-func (c MachineEventContainerOutputReceiver) ReceiveText(text []exec.TimestampedText) {
-	for _, line := range text {
-		(*c.client).LogText(line.Text, formatTime(line.Timestamp))
-	}
 }
 
 // NewNoOpMachineEventLoggingClient creates a new instance of NoOpMachineEventLoggingClient,
@@ -59,8 +43,10 @@ func (c *NoOpMachineEventLoggingClient) DevFileActionExecutionBegin(actionComman
 func (c *NoOpMachineEventLoggingClient) DevFileActionExecutionComplete(actionCommandString string, commandIndex int, commandName string, timestamp string, errorVal error) {
 }
 
-// LogText ignores the provided event.
-func (c *NoOpMachineEventLoggingClient) LogText(text string, timestamp string) {}
+// CreateLogWriter ignores the provided event.
+func (c *NoOpMachineEventLoggingClient) CreateLogWriter(stderr bool) io.Writer {
+	return nil
+}
 
 // ReportError ignores the provided event.
 func (c *NoOpMachineEventLoggingClient) ReportError(errorVal error, timestamp string) {}
@@ -135,17 +121,42 @@ func (c *ConsoleMachineEventLoggingClient) DevFileActionExecutionComplete(action
 
 }
 
-// LogText outputs the provided event as JSON to the console.
-func (c *ConsoleMachineEventLoggingClient) LogText(text string, timestamp string) {
+// CreateLogWriter returns an io.Writer for which the devfile command/action process output should be
+// written (for example by passing the io.Writer to exec.ExecuteCommand).
+//
+// All text written to the returned object will be output as a log text event.
+func (c *ConsoleMachineEventLoggingClient) CreateLogWriter(stderr bool) io.Writer {
+	reader, writer := io.Pipe()
 
-	json := MachineEventWrapper{
-		LogText: &LogText{
-			Text:      text,
-			Timestamp: timestamp,
-		},
+	stream := "stdout"
+	if stderr {
+		stream = "stderr"
 	}
 
-	OutputSuccessUnindented(json)
+	go func() {
+
+		bufReader := bufio.NewReader(reader)
+		for {
+			line, _, err := bufReader.ReadLine()
+			if err != nil {
+				// TODO: Do something about this... quit? report it?
+				fmt.Println(err)
+			} else {
+
+				json := MachineEventWrapper{
+					LogText: &LogText{
+						Text:      string(line),
+						Timestamp: TimestampNow(),
+						Stream:    stream,
+					},
+				}
+				OutputSuccessUnindented(json)
+			}
+		}
+
+	}()
+
+	return writer
 }
 
 // ReportError ignores the provided event.

@@ -3,6 +3,7 @@ package machineoutput
 import (
 	"encoding/json"
 	"fmt"
+	"sync"
 
 	"github.com/openshift/odo/pkg/log"
 
@@ -30,9 +31,17 @@ type GenericSuccess struct {
 	Message           string `json:"message"`
 }
 
+// unindentedMutex prevents multiple JSON objects from being outputted simultaneously on the same line. This is only
+// required for OutputSuccessUnindented's 'unindented' JSON objects, since objects printed by other methods are not writted from
+// multiple threads.
+var unindentedMutex = &sync.Mutex{}
+
 // OutputSuccessUnindented outputs a "successful" machine-readable output format in unindented json
 func OutputSuccessUnindented(machineOutput interface{}) {
 	printableOutput, err := json.Marshal(machineOutput)
+
+	unindentedMutex.Lock()
+	defer unindentedMutex.Unlock()
 
 	// If we error out... there's no way to output it (since we disable logging when using -o json)
 	if err != nil {

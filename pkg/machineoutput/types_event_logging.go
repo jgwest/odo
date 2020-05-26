@@ -1,7 +1,7 @@
 package machineoutput
 
 import (
-	"github.com/openshift/odo/pkg/exec"
+	"io"
 )
 
 // MachineEventLoggingClient is an interface which is used by consuming code to
@@ -16,7 +16,7 @@ type MachineEventLoggingClient interface {
 
 	ReportError(errorVal error, timestamp string)
 
-	LogText(text string, timestamp string)
+	CreateLogWriter(stderr bool) io.Writer
 }
 
 // MachineEventWrapper - a single line of machine-readable event console output must contain only one
@@ -69,6 +69,7 @@ type ReportError struct {
 type LogText struct {
 	Text      string `json:"text"`
 	Timestamp string `json:"timestamp"`
+	Stream    string `json:"stream"`
 }
 
 // Ensure the various events correctly implement the desired interface.
@@ -84,15 +85,6 @@ var _ MachineEventLogEntry = &ReportError{}
 type MachineEventLogEntry interface {
 	GetTimestamp() string
 	GetType() MachineEventLogEntryType
-}
-
-// Ensure receiver is interface compatible
-var _ exec.ContainerOutputReceiver = &MachineEventContainerOutputReceiver{}
-
-// MachineEventContainerOutputReceiver receives console output from exec command, and passes it to the
-// previously specified logging client.
-type MachineEventContainerOutputReceiver struct {
-	client *MachineEventLoggingClient
 }
 
 // Ensure these clients are interface compatible

@@ -336,7 +336,9 @@ func (a Adapter) execDevfile(pushDevfileCommands []versionsCommon.DevfileCommand
 		common.CommandNames{DefaultName: string(common.DefaultDevfileRunCommand), AdapterName: a.devfileRunCmd},
 	)
 
-	outputReceiver := machineoutput.NewMachineEventContainerOutputReceiver(&a.machineEventLogger)
+	// an io.Writer if machine readable is enabled, else nil
+	stdoutWriter := a.machineEventLogger.CreateLogWriter(false)
+	stderrWriter := a.machineEventLogger.CreateLogWriter(true)
 
 	// Loop through each of the expected commands in the devfile
 	for i, currentCommand := range commandOrder {
@@ -360,7 +362,7 @@ func (a Adapter) execDevfile(pushDevfileCommands []versionsCommon.DevfileCommand
 
 						a.machineEventLogger.DevFileActionExecutionBegin(*action.Command, actionIndex, command.Name, machineoutput.TimestampNow())
 
-						err = exec.ExecuteDevfileBuildAction(&a.Client, action, command.Name, compInfo, show, outputReceiver)
+						err = exec.ExecuteDevfileBuildAction(&a.Client, action, command.Name, compInfo, show, stdoutWriter, stderrWriter)
 
 						a.machineEventLogger.DevFileActionExecutionComplete(*action.Command, actionIndex, command.Name, machineoutput.TimestampNow(), err)
 
@@ -398,7 +400,7 @@ func (a Adapter) execDevfile(pushDevfileCommands []versionsCommon.DevfileCommand
 
 							a.machineEventLogger.DevFileActionExecutionBegin(*action.Command, actionIndex, command.Name, machineoutput.TimestampNow())
 
-							err = exec.ExecuteDevfileRunActionWithoutRestart(&a.Client, action, command.Name, compInfo, show, outputReceiver)
+							err = exec.ExecuteDevfileRunActionWithoutRestart(&a.Client, action, command.Name, compInfo, show, stdoutWriter, stderrWriter)
 
 							if err != nil {
 								a.machineEventLogger.ReportError(err, machineoutput.TimestampNow())
@@ -412,7 +414,7 @@ func (a Adapter) execDevfile(pushDevfileCommands []versionsCommon.DevfileCommand
 
 						a.machineEventLogger.DevFileActionExecutionBegin(*action.Command, actionIndex, command.Name, machineoutput.TimestampNow())
 
-						err = exec.ExecuteDevfileRunAction(&a.Client, action, command.Name, compInfo, show, outputReceiver)
+						err = exec.ExecuteDevfileRunAction(&a.Client, action, command.Name, compInfo, show, stdoutWriter, stderrWriter)
 
 						a.machineEventLogger.DevFileActionExecutionComplete(*action.Command, actionIndex, command.Name, machineoutput.TimestampNow(), err)
 					}
@@ -437,7 +439,7 @@ func (a Adapter) InitRunContainerSupervisord(containerName, podName string, cont
 				ContainerName: containerName,
 				PodName:       podName,
 			}
-			err = exec.ExecuteCommand(&a.Client, compInfo, command, true, nil)
+			err = exec.ExecuteCommand(&a.Client, compInfo, command, true, nil, nil)
 		}
 	}
 

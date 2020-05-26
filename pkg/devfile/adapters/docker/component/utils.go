@@ -352,7 +352,9 @@ func (a Adapter) execDevfile(pushDevfileCommands []versionsCommon.DevfileCommand
 	}
 
 	commandOrder := []common.CommandNames{}
-	outputReceiver := machineoutput.NewMachineEventContainerOutputReceiver(&a.machineEventLogger)
+
+	stdoutWriter := a.machineEventLogger.CreateLogWriter(false)
+	stderrWriter := a.machineEventLogger.CreateLogWriter(true)
 
 	// Only add runinit to the expected commands if the component doesn't already exist
 	// This would be the case when first running the container
@@ -386,7 +388,7 @@ func (a Adapter) execDevfile(pushDevfileCommands []versionsCommon.DevfileCommand
 
 						a.machineEventLogger.DevFileActionExecutionBegin(*action.Command, actionIndex, command.Name, machineoutput.TimestampNow())
 
-						err = exec.ExecuteDevfileBuildAction(&a.Client, action, command.Name, compInfo, show, outputReceiver)
+						err = exec.ExecuteDevfileBuildAction(&a.Client, action, command.Name, compInfo, show, stdoutWriter, stderrWriter)
 
 						a.machineEventLogger.DevFileActionExecutionComplete(*action.Command, actionIndex, command.Name, machineoutput.TimestampNow(), err)
 
@@ -423,7 +425,7 @@ func (a Adapter) execDevfile(pushDevfileCommands []versionsCommon.DevfileCommand
 
 						if componentExists && !common.IsRestartRequired(command) {
 							klog.V(4).Info("restart:false, Not restarting DevRun Command")
-							err = exec.ExecuteDevfileRunActionWithoutRestart(&a.Client, action, command.Name, compInfo, show, outputReceiver)
+							err = exec.ExecuteDevfileRunActionWithoutRestart(&a.Client, action, command.Name, compInfo, show, stdoutWriter, stderrWriter)
 
 							if err != nil {
 								a.machineEventLogger.ReportError(err, machineoutput.TimestampNow())
@@ -435,7 +437,7 @@ func (a Adapter) execDevfile(pushDevfileCommands []versionsCommon.DevfileCommand
 							return
 						}
 
-						err = exec.ExecuteDevfileRunAction(&a.Client, action, command.Name, compInfo, show, outputReceiver)
+						err = exec.ExecuteDevfileRunAction(&a.Client, action, command.Name, compInfo, show, stdoutWriter, stderrWriter)
 						a.machineEventLogger.DevFileActionExecutionComplete(*action.Command, actionIndex, command.Name, machineoutput.TimestampNow(), err)
 					}
 				}
@@ -458,7 +460,7 @@ func (a Adapter) InitRunContainerSupervisord(component string, containers []type
 			compInfo := common.ComponentInfo{
 				ContainerName: container.ID,
 			}
-			err = exec.ExecuteCommand(&a.Client, compInfo, command, true, nil)
+			err = exec.ExecuteCommand(&a.Client, compInfo, command, true, nil, nil)
 		}
 	}
 
