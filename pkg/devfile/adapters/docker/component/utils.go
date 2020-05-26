@@ -353,8 +353,8 @@ func (a Adapter) execDevfile(pushDevfileCommands []versionsCommon.DevfileCommand
 
 	commandOrder := []common.CommandNames{}
 
-	stdoutWriter := a.machineEventLogger.CreateLogWriter(false)
-	stderrWriter := a.machineEventLogger.CreateLogWriter(true)
+	stdoutWriter := a.machineEventLogger.CreateContainerOutputWriter(false)
+	stderrWriter := a.machineEventLogger.CreateContainerOutputWriter(true)
 
 	// Only add runinit to the expected commands if the component doesn't already exist
 	// This would be the case when first running the container

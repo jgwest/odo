@@ -43,8 +43,8 @@ func (c *NoOpMachineEventLoggingClient) DevFileActionExecutionBegin(actionComman
 func (c *NoOpMachineEventLoggingClient) DevFileActionExecutionComplete(actionCommandString string, commandIndex int, commandName string, timestamp string, errorVal error) {
 }
 
-// CreateLogWriter ignores the provided event.
-func (c *NoOpMachineEventLoggingClient) CreateLogWriter(stderr bool) io.Writer {
+// CreateContainerOutputWriter ignores the provided event.
+func (c *NoOpMachineEventLoggingClient) CreateContainerOutputWriter(stderr bool) io.Writer {
 	return nil
 }
 
@@ -121,11 +121,11 @@ func (c *ConsoleMachineEventLoggingClient) DevFileActionExecutionComplete(action
 
 }
 
-// CreateLogWriter returns an io.Writer for which the devfile command/action process output should be
+// CreateContainerOutputWriter returns an io.Writer for which the devfile command/action process output should be
 // written (for example by passing the io.Writer to exec.ExecuteCommand).
 //
 // All text written to the returned object will be output as a log text event.
-func (c *ConsoleMachineEventLoggingClient) CreateLogWriter(stderr bool) io.Writer {
+func (c *ConsoleMachineEventLoggingClient) CreateContainerOutputWriter(stderr bool) io.Writer {
 	reader, writer := io.Pipe()
 
 	stream := "stdout"

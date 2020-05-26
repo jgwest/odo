@@ -16,7 +16,7 @@ type MachineEventLoggingClient interface {
 
 	ReportError(errorVal error, timestamp string)
 
-	CreateLogWriter(stderr bool) io.Writer
+	CreateContainerOutputWriter(stderr bool) io.Writer
 }
 
 // MachineEventWrapper - a single line of machine-readable event console output must contain only one

@@ -337,8 +337,8 @@ func (a Adapter) execDevfile(pushDevfileCommands []versionsCommon.DevfileCommand
 	)
 
 	// an io.Writer if machine readable is enabled, else nil
-	stdoutWriter := a.machineEventLogger.CreateLogWriter(false)
-	stderrWriter := a.machineEventLogger.CreateLogWriter(true)
+	stdoutWriter := a.machineEventLogger.CreateContainerOutputWriter(false)
+	stderrWriter := a.machineEventLogger.CreateContainerOutputWriter(true)
 
 	// Loop through each of the expected commands in the devfile
 	for i, currentCommand := range commandOrder {
