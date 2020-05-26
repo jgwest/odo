@@ -46,6 +46,8 @@ func ExecuteCommand(client ExecClient, compInfo common.ComponentInfo, command []
 				}
 			}
 
+			// TODO: Replace this with another io.Pipe()?
+
 			cmdOutputMutex.Lock()
 			cmdOutput += fmt.Sprintln(line)
 			cmdOutputMutex.Unlock()
