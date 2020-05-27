@@ -386,11 +386,7 @@ func (a Adapter) execDevfile(pushDevfileCommands []versionsCommon.DevfileCommand
 							ContainerName: containerID,
 						}
 
-						a.machineEventLogger.DevFileActionExecutionBegin(*action.Command, actionIndex, command.Name, machineoutput.TimestampNow())
-
-						err = exec.ExecuteDevfileBuildAction(&a.Client, action, command.Name, compInfo, show, stdoutWriter, stderrWriter)
-
-						a.machineEventLogger.DevFileActionExecutionComplete(*action.Command, actionIndex, command.Name, machineoutput.TimestampNow(), err)
+						err = exec.ExecuteDevfileBuildAction(&a.Client, action, command.Name, actionIndex, compInfo, show, stdoutWriter, stderrWriter, a.machineEventLogger)
 
 						if err != nil {
 							a.machineEventLogger.ReportError(err, machineoutput.TimestampNow())
@@ -421,24 +417,16 @@ func (a Adapter) execDevfile(pushDevfileCommands []versionsCommon.DevfileCommand
 							ContainerName: containerID,
 						}
 
-						a.machineEventLogger.DevFileActionExecutionBegin(*action.Command, actionIndex, command.Name, machineoutput.TimestampNow())
-
 						if componentExists && !common.IsRestartRequired(command) {
 							klog.V(4).Info("restart:false, Not restarting DevRun Command")
-							err = exec.ExecuteDevfileRunActionWithoutRestart(&a.Client, action, command.Name, compInfo, show, stdoutWriter, stderrWriter)
+							err = exec.ExecuteDevfileRunActionWithoutRestart(&a.Client, action, command.Name, actionIndex, compInfo, show, stdoutWriter, stderrWriter, a.machineEventLogger)
 
-							if err != nil {
-								a.machineEventLogger.ReportError(err, machineoutput.TimestampNow())
-							} else {
-								a.machineEventLogger.DevFileActionExecutionComplete(*action.Command, actionIndex, command.Name, machineoutput.TimestampNow(), err)
-								a.machineEventLogger.DevFileCommandExecutionComplete(command.Name, machineoutput.TimestampNow())
-							}
+							a.machineEventLogger.DevFileCommandExecutionComplete(command.Name, machineoutput.TimestampNow())
 
 							return
 						}
 
-						err = exec.ExecuteDevfileRunAction(&a.Client, action, command.Name, compInfo, show, stdoutWriter, stderrWriter)
-						a.machineEventLogger.DevFileActionExecutionComplete(*action.Command, actionIndex, command.Name, machineoutput.TimestampNow(), err)
+						err = exec.ExecuteDevfileRunAction(&a.Client, action, command.Name, actionIndex, compInfo, show, stdoutWriter, stderrWriter, a.machineEventLogger)
 					}
 				}
 

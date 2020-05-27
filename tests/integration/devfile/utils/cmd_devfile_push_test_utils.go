@@ -2,7 +2,6 @@ package utils
 
 import (
 	"encoding/json"
-	"fmt"
 	"strconv"
 	"strings"
 
@@ -26,7 +25,7 @@ func AnalyzePushConsoleOutput(pushConsoleOutput string) {
 			continue
 		}
 
-		fmt.Println("Processing output line: " + line)
+		// fmt.Println("Processing output line: " + line)
 
 		lineWrapper := machineoutput.MachineEventWrapper{}
 
