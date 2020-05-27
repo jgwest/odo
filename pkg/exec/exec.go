@@ -56,7 +56,7 @@ func startReaderGoroutine(reader io.Reader, show bool, cmdOutputMutex *sync.Mute
 			if log.IsDebug() || show {
 				_, err := fmt.Fprintln(os.Stdout, line)
 				if err != nil {
-					log.Errorf("Unable to print to stdout", err)
+					log.Errorf("Unable to print to stdout: %s", err.Error())
 				}
 			}
 
@@ -67,7 +67,7 @@ func startReaderGoroutine(reader io.Reader, show bool, cmdOutputMutex *sync.Mute
 			if consoleOutput != nil {
 				_, err := consoleOutput.Write([]byte(line + "\n"))
 				if err != nil {
-					log.Errorf("Error occurred on writing string to consoleOutput writer", err)
+					log.Errorf("Error occurred on writing string to consoleOutput writer: %s", err.Error())
 				}
 			}
 		}
