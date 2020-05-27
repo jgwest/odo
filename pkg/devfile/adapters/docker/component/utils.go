@@ -389,6 +389,7 @@ func (a Adapter) execDevfile(pushDevfileCommands []versionsCommon.DevfileCommand
 						err = exec.ExecuteDevfileBuildAction(&a.Client, action, command.Name, actionIndex, compInfo, show, stdoutWriter, stderrWriter, a.machineEventLogger)
 
 						if err != nil {
+							a.machineEventLogger.DevFileCommandExecutionComplete(command.Name, machineoutput.TimestampNow())
 							return err
 						}
 					}
@@ -407,6 +408,7 @@ func (a Adapter) execDevfile(pushDevfileCommands []versionsCommon.DevfileCommand
 							err = a.InitRunContainerSupervisord(*action.Component, containers)
 							if err != nil {
 								a.machineEventLogger.ReportError(err, machineoutput.TimestampNow())
+								a.machineEventLogger.DevFileCommandExecutionComplete(command.Name, machineoutput.TimestampNow())
 								return
 							}
 						}
