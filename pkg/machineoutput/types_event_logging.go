@@ -5,7 +5,7 @@ import (
 )
 
 // MachineEventLoggingClient is an interface which is used by consuming code to
-// output machine-readable event JSON to the console. Both no-op and non-no-op 
+// output machine-readable event JSON to the console. Both no-op and non-no-op
 // implementations of this interface exist.
 type MachineEventLoggingClient interface {
 	DevFileCommandExecutionBegin(commandName string, timestamp string)
@@ -33,13 +33,13 @@ type MachineEventWrapper struct {
 // DevFileCommandExecutionBegin is the JSON event that is emitted when a dev file command begins execution.
 type DevFileCommandExecutionBegin struct {
 	CommandName string `json:"commandName"`
-	Timestamp   string `json:"timestamp"`
+	AbstractLogEvent
 }
 
 // DevFileCommandExecutionComplete is the JSON event that is emitted when a dev file command completes execution.
 type DevFileCommandExecutionComplete struct {
 	CommandName string `json:"commandName"`
-	Timestamp   string `json:"timestamp"`
+	AbstractLogEvent
 }
 
 // DevFileActionExecutionBegin is the JSON event that is emitted when a dev file action begins execution.
@@ -47,7 +47,7 @@ type DevFileActionExecutionBegin struct {
 	CommandName         string `json:"commandName"`
 	ActionCommandString string `json:"actionCommand"`
 	Index               int    `json:"index"`
-	Timestamp           string `json:"timestamp"`
+	AbstractLogEvent
 }
 
 // DevFileActionExecutionComplete is the JSON event that is emitted when a dev file action completes execution.
@@ -55,21 +55,26 @@ type DevFileActionExecutionComplete struct {
 	CommandName         string `json:"commandName"`
 	ActionCommandString string `json:"actionCommand"`
 	Index               int    `json:"index"`
-	Timestamp           string `json:"timestamp"`
 	Error               string `json:"error,omitempty"`
+	AbstractLogEvent
 }
 
 // ReportError is the JSON event that is emitted when an error occurs during push command
 type ReportError struct {
-	Timestamp string `json:"timestamp"`
-	Error     string `json:"error"`
+	Error string `json:"error"`
+	AbstractLogEvent
 }
 
 // LogText is the JSON event that is emitted when a dev file action outputs text to the console.
 type LogText struct {
-	Text      string `json:"text"`
+	Text   string `json:"text"`
+	Stream string `json:"stream"`
+	AbstractLogEvent
+}
+
+// AbstractLogEvent is the base struct for all events; all events must at a minimum contain a timestamp.
+type AbstractLogEvent struct {
 	Timestamp string `json:"timestamp"`
-	Stream    string `json:"stream"`
 }
 
 // Ensure the various events correctly implement the desired interface.

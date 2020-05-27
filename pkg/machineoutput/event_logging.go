@@ -63,8 +63,8 @@ func (c *ConsoleMachineEventLoggingClient) DevFileCommandExecutionBegin(commandN
 
 	json := MachineEventWrapper{
 		DevFileCommandExecutionBegin: &DevFileCommandExecutionBegin{
-			CommandName: commandName,
-			Timestamp:   timestamp,
+			CommandName:      commandName,
+			AbstractLogEvent: AbstractLogEvent{Timestamp: timestamp},
 		},
 	}
 
@@ -76,8 +76,8 @@ func (c *ConsoleMachineEventLoggingClient) DevFileCommandExecutionComplete(comma
 
 	json := MachineEventWrapper{
 		DevFileCommandExecutionComplete: &DevFileCommandExecutionComplete{
-			CommandName: commandName,
-			Timestamp:   timestamp,
+			CommandName:      commandName,
+			AbstractLogEvent: AbstractLogEvent{Timestamp: timestamp},
 		},
 	}
 
@@ -92,7 +92,7 @@ func (c *ConsoleMachineEventLoggingClient) DevFileActionExecutionBegin(actionCom
 			CommandName:         commandName,
 			ActionCommandString: actionCommandString,
 			Index:               commandIndex,
-			Timestamp:           timestamp,
+			AbstractLogEvent:    AbstractLogEvent{Timestamp: timestamp},
 		},
 	}
 
@@ -113,8 +113,8 @@ func (c *ConsoleMachineEventLoggingClient) DevFileActionExecutionComplete(action
 			CommandName:         commandName,
 			ActionCommandString: actionCommandString,
 			Index:               commandIndex,
-			Timestamp:           timestamp,
 			Error:               errorStr,
+			AbstractLogEvent:    AbstractLogEvent{Timestamp: timestamp},
 		},
 	}
 
@@ -146,9 +146,9 @@ func (c *ConsoleMachineEventLoggingClient) CreateContainerOutputWriter(stderr bo
 
 			json := MachineEventWrapper{
 				LogText: &LogText{
-					Text:      string(line),
-					Timestamp: TimestampNow(),
-					Stream:    stream,
+					AbstractLogEvent: AbstractLogEvent{Timestamp: TimestampNow()},
+					Text:             string(line),
+					Stream:           stream,
 				},
 			}
 			OutputSuccessUnindented(json)
@@ -163,8 +163,8 @@ func (c *ConsoleMachineEventLoggingClient) CreateContainerOutputWriter(stderr bo
 func (c *ConsoleMachineEventLoggingClient) ReportError(errorVal error, timestamp string) {
 	json := MachineEventWrapper{
 		ReportError: &ReportError{
-			Error:     errorVal.Error(),
-			Timestamp: timestamp,
+			Error:            errorVal.Error(),
+			AbstractLogEvent: AbstractLogEvent{Timestamp: timestamp},
 		},
 	}
 
@@ -199,22 +199,7 @@ func (w MachineEventWrapper) GetEntry() (MachineEventLogEntry, error) {
 }
 
 // GetTimestamp returns the timestamp element for this event.
-func (c DevFileCommandExecutionBegin) GetTimestamp() string { return c.Timestamp }
-
-// GetTimestamp returns the timestamp element for this event.
-func (c DevFileCommandExecutionComplete) GetTimestamp() string { return c.Timestamp }
-
-// GetTimestamp returns the timestamp element for this event.
-func (c DevFileActionExecutionBegin) GetTimestamp() string { return c.Timestamp }
-
-// GetTimestamp returns the timestamp element for this event.
-func (c DevFileActionExecutionComplete) GetTimestamp() string { return c.Timestamp }
-
-// GetTimestamp returns the timestamp element for this event.
-func (c LogText) GetTimestamp() string { return c.Timestamp }
-
-// GetTimestamp returns the timestamp element for this event.
-func (c ReportError) GetTimestamp() string { return c.Timestamp }
+func (c AbstractLogEvent) GetTimestamp() string { return c.Timestamp }
 
 // GetType returns the event type for this event.
 func (c DevFileCommandExecutionBegin) GetType() MachineEventLogEntryType {
