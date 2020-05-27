@@ -47,7 +47,6 @@ func ExecuteCommand(client ExecClient, compInfo common.ComponentInfo, command []
 
 // This Go routine will automatically pipe the output from the writer (passes into ExecCMDInContainer) to
 // the loggers.
-
 func startReaderGoroutine(reader io.Reader, show bool, cmdOutputMutex *sync.Mutex, cmdOutput *string, consoleOutput io.Writer) {
 	go func() {
 		scanner := bufio.NewScanner(reader)
@@ -66,7 +65,10 @@ func startReaderGoroutine(reader io.Reader, show bool, cmdOutputMutex *sync.Mute
 			cmdOutputMutex.Unlock()
 
 			if consoleOutput != nil {
-				consoleOutput.Write([]byte(line + "\n"))
+				_, err := consoleOutput.Write([]byte(line + "\n"))
+				if err != nil {
+					log.Errorf("Error occurred on writing string to consoleOutput writer", err)
+				}
 			}
 		}
 	}()
