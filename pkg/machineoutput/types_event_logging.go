@@ -5,8 +5,8 @@ import (
 )
 
 // MachineEventLoggingClient is an interface which is used by consuming code to
-// output machine-readable JSON to the console. Implementations of this interface
-// exist later in the file.
+// output machine-readable event JSON to the console. Both no-op and non-no-op 
+// implementations of this interface exist.
 type MachineEventLoggingClient interface {
 	DevFileCommandExecutionBegin(commandName string, timestamp string)
 	DevFileCommandExecutionComplete(commandName string, timestamp string)
@@ -20,7 +20,7 @@ type MachineEventLoggingClient interface {
 }
 
 // MachineEventWrapper - a single line of machine-readable event console output must contain only one
-// of these commands; the MachineEventWrapper is used to create (and parse) these lines.
+// of these commands; the MachineEventWrapper is used to create (and parse, for tests) these lines.
 type MachineEventWrapper struct {
 	DevFileCommandExecutionBegin    *DevFileCommandExecutionBegin    `json:"devFileCommandExecutionBegin,omitempty"`
 	DevFileCommandExecutionComplete *DevFileCommandExecutionComplete `json:"devFileCommandExecutionComplete,omitempty"`

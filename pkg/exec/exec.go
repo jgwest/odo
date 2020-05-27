@@ -22,7 +22,7 @@ func ExecuteCommand(client ExecClient, compInfo common.ComponentInfo, command []
 	stdoutReader, stdoutWriter := io.Pipe()
 	stderrReader, stderrWriter := io.Pipe()
 
-	// This contains both stdout and stderr lines
+	// This contains both stdout and stderr lines; acquire mutex when reading/writing 'cmdOutput'
 	var cmdOutput string
 	cmdOutputMutex := &sync.Mutex{}
 

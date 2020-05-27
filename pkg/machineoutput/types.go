@@ -32,7 +32,7 @@ type GenericSuccess struct {
 }
 
 // unindentedMutex prevents multiple JSON objects from being outputted simultaneously on the same line. This is only
-// required for OutputSuccessUnindented's 'unindented' JSON objects, since objects printed by other methods are not writted from
+// required for OutputSuccessUnindented's 'unindented' JSON objects, since objects printed by other methods are not written from
 // multiple threads.
 var unindentedMutex = &sync.Mutex{}
 

@@ -153,6 +153,7 @@ func NewCmdPush(name, fullName string) *cobra.Command {
 
 	annotations := map[string]string{"command": "component"}
 
+	// The '-o json' option should only appear in help output when experimental mode is enabled.
 	if experimental.IsExperimentalModeEnabled() {
 		annotations["machineoutput"] = "json"
 	}

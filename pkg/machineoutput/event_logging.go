@@ -5,13 +5,14 @@ import (
 	"errors"
 	"fmt"
 	"io"
-	"strconv"
 	"time"
+
+	"k8s.io/klog"
 )
 
 // formatTime returns time in UTC Unix Epoch Seconds and then the microsecond portion of that time.
 func formatTime(time time.Time) string {
-	result := strconv.FormatInt(time.Unix(), 10) + "." + fmt.Sprintf("%06d", time.Nanosecond()/1000)
+	result := fmt.Sprintf("%d.%06d", time.Unix(), time.Nanosecond()/1000)
 	return result
 
 }
@@ -52,7 +53,7 @@ func (c *NoOpMachineEventLoggingClient) CreateContainerOutputWriter(stderr bool)
 func (c *NoOpMachineEventLoggingClient) ReportError(errorVal error, timestamp string) {}
 
 // NewConsoleMachineEventLoggingClient creates a new instance of ConsoleMachineEventLoggingClient,
-// which will output event as JSON to the console.
+// which will output events as JSON to the console.
 func NewConsoleMachineEventLoggingClient() *ConsoleMachineEventLoggingClient {
 	return &ConsoleMachineEventLoggingClient{}
 }
@@ -139,19 +140,18 @@ func (c *ConsoleMachineEventLoggingClient) CreateContainerOutputWriter(stderr bo
 		for {
 			line, _, err := bufReader.ReadLine()
 			if err != nil {
-				// TODO: Do something about this... quit? report it?
-				fmt.Println(err)
-			} else {
-
-				json := MachineEventWrapper{
-					LogText: &LogText{
-						Text:      string(line),
-						Timestamp: TimestampNow(),
-						Stream:    stream,
-					},
-				}
-				OutputSuccessUnindented(json)
+				klog.V(4).Infof("Unexpected error on reading container output reader: %v", err)
+				return
 			}
+
+			json := MachineEventWrapper{
+				LogText: &LogText{
+					Text:      string(line),
+					Timestamp: TimestampNow(),
+					Stream:    stream,
+				},
+			}
+			OutputSuccessUnindented(json)
 		}
 
 	}()
