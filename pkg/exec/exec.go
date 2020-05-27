@@ -56,7 +56,7 @@ func startReaderGoroutine(reader io.Reader, show bool, cmdOutputMutex *sync.Mute
 			if log.IsDebug() || show {
 				_, err := fmt.Fprintln(os.Stdout, line)
 				if err != nil {
-					log.Errorf("Unable to print to stdout: %v", err)
+					log.Errorf("Unable to print to stdout", err)
 				}
 			}
 
