@@ -52,3 +52,30 @@ func (k Adapter) Delete(labels map[string]string) error {
 
 	return nil
 }
+
+func (k Adapter) GetContainerStatus() (common.ContainerStatus, error) {
+
+	statuses, err := k.componentAdapter.GetContainerStatus()
+	if err != nil {
+		return nil, err
+	}
+
+	return statuses, nil
+
+}
+
+func (k Adapter) StartContainerStatusWatch() {
+
+	k.componentAdapter.StartContainerStatusWatch()
+
+}
+
+func (k Adapter) StartSupervisordCtlStatusWatch() {
+
+	k.componentAdapter.StartSupervisordCtlStatusWatch()
+
+}
+
+func (k Adapter) StartURLHttpRequestStatusWatch() {
+	k.componentAdapter.StartURLHttpRequestStatusWatch()
+}

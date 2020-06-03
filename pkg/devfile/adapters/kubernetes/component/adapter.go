@@ -1,11 +1,21 @@
 package component
 
 import (
+	"crypto/tls"
+	"encoding/json"
 	"fmt"
+	"net/http"
 	"reflect"
+	"sort"
+	"strings"
+	gosync "sync"
+	"time"
 
+	routev1 "github.com/openshift/api/route/v1"
+	v1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/types"
 
 	"github.com/fatih/color"
 	"github.com/golang/glog"
@@ -24,6 +34,7 @@ import (
 	"github.com/openshift/odo/pkg/machineoutput"
 	odoutil "github.com/openshift/odo/pkg/odo/util"
 	"github.com/openshift/odo/pkg/sync"
+	"github.com/openshift/odo/pkg/url"
 )
 
 // New instantiantes a component adapter
@@ -435,4 +446,468 @@ func (a Adapter) Delete(labels map[string]string) error {
 	}
 
 	return a.Client.DeleteDeployment(labels)
+}
+
+type KubernetesContainerStatus struct {
+	DeploymentUID types.UID
+	ReplicaSetUID types.UID
+	Pods          []*corev1.Pod
+}
+
+type KubernetesPodStatus struct {
+	Name           string
+	UID            string
+	Phase          string
+	Labels         map[string]string
+	StartTime      *time.Time
+	Containers     []corev1.ContainerStatus
+	InitContainers []corev1.ContainerStatus
+}
+
+var _ common.ContainerStatus = KubernetesContainerStatus{}
+
+func (kcs KubernetesContainerStatus) GetType() common.ContainerStatusType {
+	return common.ContainerStatusKubernetes
+}
+
+func (a Adapter) GetContainerStatus() (common.ContainerStatus, error) {
+
+	deployment, err := a.Client.KubeClient.AppsV1().Deployments(a.Client.Namespace).Get(a.ComponentName, metav1.GetOptions{})
+	if err != nil {
+		return nil, err
+	}
+
+	if deployment == nil {
+		// TODO: Return NO_DEPLOYMENT status
+		return nil, errors.New("Deployment status from Kubernetes API was nil")
+	}
+
+	deploymentUID := deployment.UID
+
+	replicaSetList, err := a.Client.KubeClient.AppsV1().ReplicaSets(a.Client.Namespace).List(metav1.ListOptions{})
+
+	if err != nil {
+		return nil, err
+	}
+
+	matchingReplicaSets := []v1.ReplicaSet{}
+	for _, replicaSet := range replicaSetList.Items {
+
+		for _, ownerRef := range replicaSet.OwnerReferences {
+
+			if ownerRef.UID == deploymentUID {
+				matchingReplicaSets = append(matchingReplicaSets, replicaSet)
+			}
+		}
+	}
+
+	// debugOutputJSON(matchingReplicaSets)
+
+	if len(matchingReplicaSets) == 0 {
+		// TODO: Return NO_REPLICA_SET status
+		return nil, errors.New("No replica sets found")
+	}
+
+	if len(matchingReplicaSets) > 1 {
+		// TODO: Return MULTIPLE_REPLICA_SET status or handle this case better
+		return nil, errors.New("Multiple replica sets found")
+	}
+
+	replicaSetUID := matchingReplicaSets[0].UID
+
+	// fmt.Println("replicaSetUID ", replicaSetUID)
+
+	podList, err := a.Client.KubeClient.CoreV1().Pods(a.Client.Namespace).List(metav1.ListOptions{})
+
+	matchingPods := []*corev1.Pod{}
+	for _, podItem := range podList.Items {
+		for _, ownerRef := range podItem.OwnerReferences {
+
+			// fmt.Println(podItem.Name, " ", "ref uid ", ownerRef.UID, " ", replicaSetUID)
+
+			if string(ownerRef.UID) == string(replicaSetUID) {
+				podItemPtr := &podItem
+				matchingPods = append(matchingPods, podItemPtr)
+				fmt.Println("match!") // TODO: Remove this
+			}
+		}
+	}
+
+	result := KubernetesContainerStatus{}
+
+	for _, matchingPod := range matchingPods {
+
+		// podStatus := CreateKubernetesPodStatusFromPod(matchingPod)
+
+		// podStatus := KubernetesPodStatus{
+		// 	Name:           matchingPod.Name,
+		// 	UID:            string(matchingPod.UID),
+		// 	Phase:          string(matchingPod.Status.Phase),
+		// 	Labels:         matchingPod.Labels,
+		// 	InitContainers: []corev1.ContainerStatus{},
+		// 	Containers:     []corev1.ContainerStatus{},
+		// }
+
+		// if matchingPod.Status.StartTime != nil {
+		// 	podStatus.StartTime = &matchingPod.Status.StartTime.Time
+		// }
+
+		// podStatus.InitContainers = matchingPod.Status.InitContainerStatuses
+
+		// podStatus.Containers = matchingPod.Status.ContainerStatuses
+
+		result.Pods = append(result.Pods, matchingPod)
+
+	}
+
+	result.DeploymentUID = deploymentUID
+	result.ReplicaSetUID = replicaSetUID
+
+	return result, nil
+
+}
+
+func CreateKubernetesPodStatusFromPod(pod corev1.Pod) KubernetesPodStatus {
+	podStatus := KubernetesPodStatus{
+		Name:           pod.Name,
+		UID:            string(pod.UID),
+		Phase:          string(pod.Status.Phase),
+		Labels:         pod.Labels,
+		InitContainers: []corev1.ContainerStatus{},
+		Containers:     []corev1.ContainerStatus{},
+	}
+
+	if pod.Status.StartTime != nil {
+		podStatus.StartTime = &pod.Status.StartTime.Time
+	}
+
+	podStatus.InitContainers = pod.Status.InitContainerStatuses
+
+	podStatus.Containers = pod.Status.ContainerStatuses
+
+	return podStatus
+
+}
+
+var podPhaseSortOrder = map[corev1.PodPhase]int{
+	corev1.PodFailed:    0,
+	corev1.PodSucceeded: 1,
+	corev1.PodUnknown:   2,
+	corev1.PodPending:   3,
+	corev1.PodRunning:   4,
+}
+
+type SupervisordStatusWatcher struct {
+	statusReconcilerChannel chan supervisorDStatusEvent
+}
+
+func NewSupervisordStatusWatch() *SupervisordStatusWatcher {
+	inputChan := createSupervisorDStatusReconciler()
+
+	return &SupervisordStatusWatcher{
+		statusReconcilerChannel: inputChan,
+	}
+}
+
+func (a Adapter) StartSupervisordCtlStatusWatch() {
+
+	watcher := NewSupervisordStatusWatch()
+
+	// start time
+
+	ticker := time.NewTicker(10 * time.Second)
+
+	go func() {
+		for {
+			// On initial goroutine start, perform a query
+			watcher.querySupervisordStatusFromContainers(a)
+			<-ticker.C
+		}
+
+	}()
+
+}
+
+func (sw *SupervisordStatusWatcher) querySupervisordStatusFromContainers(a Adapter) {
+	genericStatus, err := a.GetContainerStatus()
+	if err != nil {
+		fmt.Println(err)
+		return
+	}
+
+	// TODO: Move all this status stuff to its own file in adapter package
+
+	status := genericStatus.(KubernetesContainerStatus)
+
+	// debugOutputJSON(status.Pods)
+
+	sort.Slice(status.Pods, func(i, j int) bool {
+
+		iPod := status.Pods[i]
+		jPod := status.Pods[j]
+
+		iTime := iPod.CreationTimestamp.Time
+		jTime := jPod.CreationTimestamp.Time
+
+		if !jTime.Equal(iTime) {
+			// Sort descending by creation timestamp
+			return jTime.After(iTime)
+		}
+
+		// Next, sort descending to find the pod with most successful pod phase:
+		// PodRunning > PodPending > PodUnknown > PodSucceeded > PodFailed
+		return podPhaseSortOrder[jPod.Status.Phase] > podPhaseSortOrder[iPod.Status.Phase]
+	})
+
+	if len(status.Pods) < 1 {
+		return
+	}
+
+	fmt.Println("Unimplemented 10")
+
+	pod := status.Pods[0]
+
+	// Acquire the run command object to verify correctness
+	runCommand, err := adaptersCommon.GetRunCommand(a.Devfile.Data, a.devfileRunCmd)
+	if err != nil {
+		fmt.Println(err)
+		return
+	}
+
+	componentAliasToActionMap := map[string][]versionsCommon.DevfileCommandAction{}
+	for _, action := range runCommand.Actions {
+
+		if action.Component != nil {
+
+			actionList := componentAliasToActionMap[*action.Component]
+
+			componentAliasToActionMap[*action.Component] = append(actionList, action)
+		}
+	}
+
+	for _, container := range pod.Status.ContainerStatuses {
+
+		status := getSupervisordStatusInContainer(pod.Name, container.Name, a)
+
+		// The name of the container is the component alias
+		actionsForContainer := componentAliasToActionMap[container.Name]
+
+		for _, action := range actionsForContainer {
+
+			sw.statusReconcilerChannel <- supervisorDStatusEvent{
+				commandName:   runCommand.Name,
+				containerName: container.Name,
+				status:        status,
+				actionCommand: *action.Command,
+			}
+
+		}
+
+	}
+
+}
+
+type supervisorDStatusEvent struct {
+	commandName   string
+	containerName string
+	status        string
+	actionCommand string
+}
+
+func createSupervisorDStatusReconciler() chan supervisorDStatusEvent {
+
+	// TODO: Need to initially communicate the status
+
+	result := make(chan supervisorDStatusEvent)
+
+	go func() {
+		// containerName -> status
+		lastContainerStatus := map[string]string{}
+
+		for {
+
+			event := <-result
+
+			fmt.Println("Event received\n")
+
+			previousStatus, present := lastContainerStatus[event.containerName]
+			lastContainerStatus[event.containerName] = event.status
+
+			reportChange := false
+
+			if present {
+
+				if previousStatus != event.status {
+					glog.V(4).Infof("Container %v status changed - to: %v, was: %v", event.containerName, event.status, previousStatus)
+					reportChange = true
+				} else {
+					glog.V(5).Infof("Container %v status has not changed - is: %v", event.containerName, event.status)
+					reportChange = false
+				}
+
+			} else {
+				glog.V(4).Infof("A new container %v status is reported - is: %v", event.containerName, event.status)
+				reportChange = true
+			}
+
+			if reportChange {
+				fmt.Printf("action: commandName: \"%s\" component: \"%s\" command: \"%s\" status: \"%s\"\n", event.commandName, event.containerName, event.actionCommand, event.status)
+			}
+
+		}
+
+	}()
+
+	return result
+}
+
+func getSupervisordStatusInContainer(podName string, containerName string, a Adapter) string {
+
+	command := []string{common.SupervisordBinaryPath, common.SupervisordCtlSubCommand, "status"}
+	compInfo := common.ComponentInfo{
+		ContainerName: containerName,
+		PodName:       podName,
+	}
+
+	receiver := SupervisordReceiver{receivedText: &[]string{}, mutex: &gosync.Mutex{}}
+
+	err := exec.ExecuteCommand(&a.Client, compInfo, command, true, receiver)
+	fmt.Println("Post")
+	if err != nil {
+		// TODO: Do something w/ this
+		fmt.Println(err)
+		return "ERROR"
+	}
+
+	for _, line := range *receiver.receivedText {
+
+		if strings.Contains(line, string(common.DefaultDevfileRunCommand)) {
+
+			if strings.Contains(line, "STARTED") {
+				return "STARTED"
+			} else if strings.Contains(line, "STOPPED") {
+				return "STOPPED"
+			} else {
+				return "UNKNOWN"
+			}
+		}
+
+	}
+
+	return "UNKNOWN"
+}
+
+type SupervisordReceiver struct {
+	receivedText *[]string
+	mutex        *gosync.Mutex
+}
+
+func (receiver SupervisordReceiver) ReceiveText(text []exec.TimestampedText) {
+
+	receiver.mutex.Lock()
+	defer receiver.mutex.Unlock()
+
+	for _, line := range text {
+		*receiver.receivedText = append(*receiver.receivedText, line.Text)
+	}
+
+}
+
+var _ exec.ContainerOutputReceiver = SupervisordReceiver{}
+
+func (a Adapter) StartContainerStatusWatch() {
+
+	pw := NewPodWatcher(&a)
+	pw.startStatusTimer()
+
+	// fmt.Println("Unimplemented 4")
+
+}
+
+func debugOutputJSON(jsonObj interface{}) {
+	output, err := json.MarshalIndent(jsonObj, "", "    ")
+	if err != nil {
+		fmt.Println("Parsing error occured", err)
+		return
+	}
+	fmt.Println(string(output))
+}
+
+func (a Adapter) StartURLHttpRequestStatusWatch() {
+	// a.Client.ListIngresses()
+	fmt.Println("unimplemented 32")
+
+	urls, err := url.ListPushedIngress(&a.Client, a.ComponentName)
+
+	for _, item := range urls.Items {
+
+		url := url.GetURLString(url.GetProtocol(routev1.Route{}, item), "", item.Spec.Rules[0].Host)
+
+		startURLTestGoRoutine(url, true, 10*time.Second)
+
+		// fmt.Printf("%v %v\n", url, item.Spec.TLS != nil)
+	}
+
+	// debugOutputJSON(urls)
+
+	// localUrls := urls.EnvSpecificInfo.GetURL()
+
+	// for _, i := range localUrls {
+	// 	for _, u := range urls.Items {
+	// 		if i.Name == u.Name {
+	// 			fmt.Printf("%v\n", u.Spec.TLS != nil)
+	// 		}
+	// 	}
+	// }
+
+	if err != nil {
+		fmt.Println("Error", err) // TODO: Handle this
+		return
+	}
+
+}
+
+func startURLTestGoRoutine(url string, insecureSkipVerify bool, delayBetweenRequests time.Duration) {
+
+	go func() {
+
+		var previousResult *bool = nil
+
+		for {
+			result, _ := testUrl(url, insecureSkipVerify)
+
+			if previousResult == nil || *previousResult != result {
+				fmt.Printf("URL: %s  result: %v\n", url, result)
+			}
+
+			previousResult = &result
+
+			time.Sleep(delayBetweenRequests)
+
+		}
+	}()
+}
+
+func testUrl(url string, insecureSkipVerify bool) (bool, error) {
+	tr := &http.Transport{
+		TLSClientConfig: &tls.Config{InsecureSkipVerify: insecureSkipVerify},
+	}
+
+	client := &http.Client{Transport: tr}
+
+	resp, err := client.Get(url)
+	if err != nil || resp == nil {
+		errMsg := "Get request failed for " + url + " , with no response code."
+		return false, errors.New(errMsg)
+	}
+
+	defer resp.Body.Close()
+
+	// if resp.StatusCode != 200 {
+	// 	errMsg := "Get response failed for " + url + ", response code: " + strconv.Itoa(resp.StatusCode)
+	// 	return false, errors.New(errMsg)
+	// }
+
+	return true, nil
+
 }

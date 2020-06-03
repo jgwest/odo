@@ -229,3 +229,59 @@ func (a Adapter) Delete(labels map[string]string) error {
 	return nil
 
 }
+
+type ContainerStatus struct {
+	ID     string
+	Names  []string
+	Status string
+}
+
+var _ common.ContainerStatus = DockerContainerStatus{}
+
+type DockerContainerStatus struct {
+	containers []ContainerStatus
+}
+
+func (dc DockerContainerStatus) GetType() common.ContainerStatusType {
+	return common.ContainerStatusDocker
+}
+
+func (d Adapter) GetContainerStatus() (common.ContainerStatus, error) {
+
+	result := DockerContainerStatus{}
+
+	containers, err := utils.GetComponentContainers(d.Client, d.ComponentName)
+	if err != nil {
+		return nil, err
+	}
+
+	for _, dockerContainer := range containers {
+
+		containerResult := ContainerStatus{
+			ID:     dockerContainer.ID,
+			Names:  dockerContainer.Names,
+			Status: dockerContainer.Status,
+		}
+
+		result.containers = append(result.containers, containerResult)
+
+	}
+
+	return result, nil
+
+}
+
+func (d Adapter) StartContainerStatusWatch() {
+
+	fmt.Println("Unimplemented 2")
+
+}
+
+func (d Adapter) StartSupervisordCtlStatusWatch() {
+
+	fmt.Println("Unimplemented 11")
+}
+
+func (a Adapter) StartURLHttpRequestStatusWatch() {
+	fmt.Println("unimplemented 30")
+}

@@ -54,6 +54,7 @@ func ConvertPorts(endpoints []common.DockerimageEndpoint) ([]corev1.ContainerPor
 
 // GetContainers iterates through the components in the devfile and returns a slice of the corresponding containers
 func GetContainers(devfileObj devfileParser.DevfileObj) ([]corev1.Container, error) {
+	
 	var containers []corev1.Container
 	for _, comp := range adaptersCommon.GetSupportedComponents(devfileObj.Data) {
 		envVars := ConvertEnvs(comp.Env)

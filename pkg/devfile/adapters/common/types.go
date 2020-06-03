@@ -50,3 +50,47 @@ type ComponentInfo struct {
 	PodName       string
 	ContainerName string
 }
+
+type ContainerStatusType int
+
+const (
+	ContainerStatusKubernetes ContainerStatusType = 0
+
+	ContainerStatusDocker ContainerStatusType = 1
+)
+
+type ContainerStatus interface {
+	GetType() ContainerStatusType
+}
+
+// type JGWDockerContainer struct {
+// 	ID     string
+// 	Names  []string
+// 	Status string
+// }
+
+// type JGWKubernetesContainer struct {
+// }
+
+// type KubernetesContainerState {
+
+// }
+
+// type KubernetesContainer struct {
+// 	State KubernetesContainerState
+// 	Name string
+// 	ContainerID string
+// }
+
+// type StatusKubernetesContainer interface {
+// 	GetType() ContainerStatusType
+// 	GetPhase() string
+// 	GetStartTime() *time.Time
+// 	GetInitContainers()  []corev1.ContainerStatus
+// 	GetContainers()  []corev1.ContainerStatus
+// }
+
+// type StatusDockerContainers interface {
+// 	GetContainers() []JGWDockerContainer
+// 	GetType() ContainerStatusType
+// }

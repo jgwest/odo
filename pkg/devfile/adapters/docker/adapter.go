@@ -1,6 +1,8 @@
 package docker
 
 import (
+	"fmt"
+
 	"github.com/openshift/odo/pkg/devfile/adapters/common"
 	"github.com/openshift/odo/pkg/devfile/adapters/docker/component"
 	"github.com/openshift/odo/pkg/lclient"
@@ -41,4 +43,24 @@ func (d Adapter) DoesComponentExist(cmpName string) bool {
 // Delete attempts to delete the component with the specified labels, returning an error if it fails
 func (d Adapter) Delete(labels map[string]string) error {
 	return d.componentAdapter.Delete(labels)
+}
+
+func (d Adapter) StartContainerStatusWatch() {
+
+	fmt.Println("Unimplemented 1")
+
+}
+
+func (d Adapter) StartSupervisordCtlStatusWatch() {
+	d.componentAdapter.StartSupervisordCtlStatusWatch()
+}
+
+func (d Adapter) GetContainerStatus() (common.ContainerStatus, error) {
+
+	return d.componentAdapter.GetContainerStatus()
+
+}
+
+func (d Adapter) StartURLHttpRequestStatusWatch() {
+	fmt.Println("unimplemented 31")
 }
