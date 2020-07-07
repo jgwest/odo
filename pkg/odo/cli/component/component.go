@@ -57,6 +57,7 @@ func NewCmdComponent(name, fullName string) *cobra.Command {
 	watchCmd := NewCmdWatch(WatchRecommendedCommandName, odoutil.GetFullName(fullName, WatchRecommendedCommandName))
 	testCmd := NewCmdTest(TestRecommendedCommandName, odoutil.GetFullName(fullName, TestRecommendedCommandName))
 	execCmd := NewCmdExec(ExecRecommendedCommandName, odoutil.GetFullName(fullName, ExecRecommendedCommandName))
+	statusCmd := NewCmdStatus(StatusRecommendedCommandName, odoutil.GetFullName(fullName, StatusRecommendedCommandName))
 
 	// componentCmd represents the component command
 	var componentCmd = &cobra.Command{
@@ -75,6 +76,7 @@ func NewCmdComponent(name, fullName string) *cobra.Command {
 	componentCmd.AddCommand(componentGetCmd, createCmd, deleteCmd, describeCmd, linkCmd, unlinkCmd, listCmd, logCmd, pushCmd, updateCmd, watchCmd, execCmd)
 	if experimental.IsExperimentalModeEnabled() {
 		componentCmd.AddCommand(testCmd)
+		componentCmd.AddCommand(statusCmd)
 	}
 
 	// Add a defined annotation in order to appear in the help menu
