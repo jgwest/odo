@@ -69,3 +69,13 @@ func (k Adapter) Log(follow, debug bool) (io.ReadCloser, error) {
 func (d Adapter) Exec(command []string) error {
 	return d.componentAdapter.Exec(command)
 }
+
+// StartContainerStatusWatch outputs Kubernetes pod/container status changes to the console, as used by the status command
+func (k Adapter) StartContainerStatusWatch() {
+	k.componentAdapter.StartContainerStatusWatch()
+}
+
+// StartSupervisordCtlStatusWatch outputs supervisord program status changes to the console, as used by the status command
+func (k Adapter) StartSupervisordCtlStatusWatch() {
+	k.componentAdapter.StartSupervisordCtlStatusWatch()
+}

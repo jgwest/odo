@@ -226,6 +226,11 @@ test-cmd-devfile-exec:
 test-cmd-docker-devfile-exec:
 	ginkgo $(GINKGO_FLAGS) -focus="odo docker devfile exec command tests" tests/integration/devfile/docker
 
+# Run odo statis devfile command tests
+.PHONY: test-cmd-devfile-status
+test-cmd-devfile-status:
+	ginkgo $(GINKGO_FLAGS) -focus="odo devfile status command tests" tests/integration/devfile/
+
 # Run odo devfile watch command tests
 .PHONY: test-cmd-devfile-watch
 test-cmd-devfile-watch:
@@ -276,6 +281,11 @@ test-cmd-devfile-log:
 .PHONY: test-cmd-docker-devfile-push
 test-cmd-docker-devfile-push:
 	ginkgo $(GINKGO_FLAGS) -focus="odo docker devfile push command tests" tests/integration/devfile/docker/
+
+# Run odo status docker devfile command tests
+.PHONY: test-cmd-docker-devfile-status
+test-cmd-docker-devfile-status:
+	ginkgo $(GINKGO_FLAGS) -focus="odo docker devfile status command tests" tests/integration/devfile/docker/
 
 # Run odo watch docker devfile command tests
 .PHONY: test-cmd-docker-devfile-watch
