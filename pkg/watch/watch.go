@@ -8,8 +8,12 @@ import (
 	"sync"
 	"time"
 
+	"github.com/openshift/odo/pkg/devfile/adapters"
 	"github.com/openshift/odo/pkg/devfile/adapters/common"
+	"github.com/openshift/odo/pkg/devfile/adapters/kubernetes"
+	"github.com/openshift/odo/pkg/devfile/parser"
 	"github.com/openshift/odo/pkg/envinfo"
+	"github.com/openshift/odo/pkg/odo/util/pushtarget"
 	"github.com/openshift/odo/pkg/util"
 
 	"github.com/openshift/odo/pkg/occlient"
@@ -17,6 +21,11 @@ import (
 	"github.com/fsnotify/fsnotify"
 	"github.com/pkg/errors"
 	"k8s.io/klog"
+)
+
+const (
+	// The string that is printed when an error occurs during watch's Push operation
+	PushErrorString = "Error occurred on Push"
 )
 
 // WatchParameters is designed to hold the controllables and attributes that the watch function works on
@@ -32,7 +41,7 @@ type WatchParameters struct {
 	// Custom function that can be used to push detected changes to remote pod. For more info about what each of the parameters to this function, please refer, pkg/component/component.go#PushLocal
 	WatchHandler func(*occlient.Client, string, string, string, io.Writer, []string, []string, bool, []string, bool) error
 	// Custom function that can be used to push detected changes to remote devfile pod. For more info about what each of the parameters to this function, please refer, pkg/devfile/adapters/interface.go#PlatformAdapter
-	DevfileWatchHandler func(common.PushParameters) error
+	// DevfileWatchHandler func(common.PushParameters) error
 	// This is a channel added to signal readiness of the watch command to the external channel listeners
 	StartChan chan bool
 	// This is a channel added to terminate the watch command gracefully without passing SIGINT. "Stop" message on this channel terminates WatchAndPush function
@@ -48,7 +57,9 @@ type WatchParameters struct {
 	// DevfileBuildCmd takes the build command through the command line and overwrites devfile build command
 	DevfileBuildCmd string
 	// DevfileRunCmd takes the run command through the command line and overwrites devfile run command
-	DevfileRunCmd string
+	DevfileRunCmd    string
+	DevfilePath      string
+	DevfileNamespace string
 }
 
 // addRecursiveWatch handles adding watches recursively for the path provided
@@ -311,7 +322,7 @@ func WatchAndPush(client *occlient.Client, out io.Writer, parameters WatchParame
 				}
 				if fileInfo.IsDir() {
 					klog.V(4).Infof("Copying files %s to pod", changedFiles)
-					if parameters.DevfileWatchHandler != nil {
+					if parameters.DevfilePath != "" {
 						pushParams := common.PushParameters{
 							Path:              parameters.Path,
 							WatchFiles:        changedFiles,
@@ -324,7 +335,11 @@ func WatchAndPush(client *occlient.Client, out io.Writer, parameters WatchParame
 							EnvSpecificInfo:   *parameters.EnvSpecificInfo,
 						}
 
-						err = parameters.DevfileWatchHandler(pushParams)
+						adapter, err := createNewComponentAdapter(parameters)
+						if err == nil {
+							err = adapter.Push(pushParams)
+						}
+
 					} else {
 						err = parameters.WatchHandler(client, parameters.ComponentName, parameters.ApplicationName, parameters.Path, out, changedFiles, deletedPaths, false, parameters.FileIgnores, parameters.Show)
 					}
@@ -332,7 +347,7 @@ func WatchAndPush(client *occlient.Client, out io.Writer, parameters WatchParame
 				} else {
 					pathDir := filepath.Dir(parameters.Path)
 					klog.V(4).Infof("Copying file %s to pod", parameters.Path)
-					if parameters.DevfileWatchHandler != nil {
+					if parameters.DevfilePath != "" {
 						pushParams := common.PushParameters{
 							Path:              pathDir,
 							WatchFiles:        changedFiles,
@@ -345,13 +360,19 @@ func WatchAndPush(client *occlient.Client, out io.Writer, parameters WatchParame
 							EnvSpecificInfo:   *parameters.EnvSpecificInfo,
 						}
 
-						err = parameters.DevfileWatchHandler(pushParams)
+						adapter, err := createNewComponentAdapter(parameters)
+						if err == nil {
+							err = adapter.Push(pushParams)
+						}
+
+						// err = parameters.DevfileWatchHandler(pushParams)
 					} else {
 						err = parameters.WatchHandler(client, parameters.ComponentName, parameters.ApplicationName, pathDir, out, []string{parameters.Path}, deletedPaths, false, parameters.FileIgnores, parameters.Show)
 					}
 
 				}
 				if err != nil {
+					fmt.Fprintf(out, "%s: %v\n", PushErrorString, err)
 					// Intentionally not exiting on error here.
 					// We don't want to break watch when push failed, it might be fixed with the next change.
 					klog.V(4).Infof("Error from Push: %v", err)
@@ -367,6 +388,26 @@ func WatchAndPush(client *occlient.Client, out io.Writer, parameters WatchParame
 		changeLock.Unlock()
 		<-ticker.C
 	}
+}
+
+func createNewComponentAdapter(parameters WatchParameters) (common.ComponentAdapter, error) {
+	// Parse devfile and validate
+	devObj, err := parser.ParseAndValidate(parameters.DevfilePath)
+	if err != nil {
+		return nil, err
+	}
+
+	var platformContext interface{}
+	if !pushtarget.IsPushTargetDocker() {
+		platformContext = kubernetes.KubernetesContext{
+			Namespace: parameters.DevfileNamespace,
+		}
+	} else {
+		platformContext = nil
+	}
+
+	return adapters.NewComponentAdapter(parameters.ComponentName, parameters.Path, devObj, platformContext)
+
 }
 
 // DevfileWatchAndPush calls out to the WatchAndPush function.

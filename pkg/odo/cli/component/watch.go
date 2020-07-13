@@ -55,10 +55,10 @@ type WatchOptions struct {
 	componentContext string
 	client           *occlient.Client
 
-	componentName  string
-	devfilePath    string
-	namespace      string
-	devfileHandler common.ComponentAdapter
+	componentName         string
+	devfilePath           string
+	namespace             string
+	initialDevfileHandler common.ComponentAdapter
 
 	// devfile commands
 	devfileInitCommand  string
@@ -115,7 +115,7 @@ func (wo *WatchOptions) Complete(name string, cmd *cobra.Command, args []string)
 		} else {
 			platformContext = nil
 		}
-		wo.devfileHandler, err = adapters.NewComponentAdapter(wo.componentName, wo.componentContext, devObj, platformContext)
+		wo.initialDevfileHandler, err = adapters.NewComponentAdapter(wo.componentName, wo.componentContext, devObj, platformContext)
 
 		return err
 	}
@@ -158,7 +158,7 @@ func (wo *WatchOptions) Validate() (err error) {
 
 	// if experimental mode is enabled and devfile is present, return. The rest of the validation is for non-devfile components
 	if experimental.IsExperimentalModeEnabled() && util.CheckPathExists(wo.devfilePath) {
-		exists := wo.devfileHandler.DoesComponentExist(wo.componentName)
+		exists := wo.initialDevfileHandler.DoesComponentExist(wo.componentName)
 		if !exists {
 			return fmt.Errorf("component does not exist. Please use `odo push` to create your component")
 		}
@@ -201,18 +201,20 @@ func (wo *WatchOptions) Run() (err error) {
 		err = watch.DevfileWatchAndPush(
 			os.Stdout,
 			watch.WatchParameters{
-				ComponentName:       wo.componentName,
-				Path:                wo.sourcePath,
-				FileIgnores:         util.GetAbsGlobExps(wo.sourcePath, wo.ignores),
-				PushDiffDelay:       wo.delay,
-				StartChan:           nil,
-				ExtChan:             make(chan bool),
-				DevfileWatchHandler: wo.devfileHandler.Push,
-				Show:                wo.show,
-				DevfileInitCmd:      strings.ToLower(wo.devfileInitCommand),
-				DevfileBuildCmd:     strings.ToLower(wo.devfileBuildCommand),
-				DevfileRunCmd:       strings.ToLower(wo.devfileRunCommand),
-				EnvSpecificInfo:     wo.EnvSpecificInfo,
+				ComponentName:    wo.componentName,
+				Path:             wo.sourcePath,
+				FileIgnores:      util.GetAbsGlobExps(wo.sourcePath, wo.ignores),
+				PushDiffDelay:    wo.delay,
+				StartChan:        nil,
+				ExtChan:          make(chan bool),
+				DevfileNamespace: wo.namespace,
+				DevfilePath:      wo.devfilePath,
+				// DevfileWatchHandler: wo.devfileHandler.Push,
+				Show:            wo.show,
+				DevfileInitCmd:  strings.ToLower(wo.devfileInitCommand),
+				DevfileBuildCmd: strings.ToLower(wo.devfileBuildCommand),
+				DevfileRunCmd:   strings.ToLower(wo.devfileRunCommand),
+				EnvSpecificInfo: wo.EnvSpecificInfo,
 			},
 		)
 		if err != nil {
