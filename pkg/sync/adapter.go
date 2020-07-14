@@ -50,6 +50,8 @@ func (a Adapter) SyncFiles(syncParameters common.SyncParameters) (isPushRequired
 	compInfo := syncParameters.CompInfo
 	globExps := util.GetAbsGlobExps(pushParameters.Path, pushParameters.IgnoredFiles)
 
+	fmt.Println("jgw", syncParameters.PodChanged, pushParameters.ForceBuild)
+
 	// Sync source code to the component
 	// If syncing for the first time, sync the entire source directory
 	// If syncing to an already running component, sync the deltas
@@ -118,6 +120,8 @@ func (a Adapter) SyncFiles(syncParameters common.SyncParameters) (isPushRequired
 	if pushParameters.ForceBuild || !syncParameters.ComponentExists || syncParameters.PodChanged {
 		isForcePush = true
 	}
+
+	fmt.Println("isForcePush", isForcePush)
 
 	err = a.pushLocal(pushParameters.Path,
 		changedFiles,

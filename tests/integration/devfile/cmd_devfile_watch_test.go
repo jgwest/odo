@@ -105,8 +105,8 @@ var _ = Describe("odo devfile watch command tests", func() {
 	// 	})
 	// })
 
-	Context("when executing odo watch after odo push", func() {
-		It("should listen for file changes", func() {
+	Context("when executing odo watch", func() {
+		It("should show validation errors if the devfile is incorrect", func() {
 			helper.CmdShouldPass("odo", "create", "nodejs", "--project", namespace, cmpName)
 
 			helper.CopyExample(filepath.Join("source", "devfiles", "nodejs", "project"), context)
@@ -116,6 +116,8 @@ var _ = Describe("odo devfile watch command tests", func() {
 			Expect(output).To(ContainSubstring("Changes successfully pushed to component"))
 
 			session := helper.CmdRunner("odo", "watch", "--context", context)
+			defer session.Kill()
+
 			waitForOutputToContain("Waiting for something to change", session)
 
 			helper.ReplaceString(filepath.Join(context, "devfile.yaml"), "kind: build", "kind: run")
@@ -123,6 +125,7 @@ var _ = Describe("odo devfile watch command tests", func() {
 			waitForOutputToContain(watch.PushErrorString, session)
 
 			session.Kill()
+
 			Eventually(session).Should(gexec.Exit())
 
 		})

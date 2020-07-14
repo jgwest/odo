@@ -810,11 +810,14 @@ func TestWatchAndPush(t *testing.T) {
 				}
 
 				if tt.isExperimental {
-					// watchParameters.DevfileWatchHandler = mockDevFilePush
+					watchParameters.MockDevfileWatchHandler = mockDevFilePush
 					watchParameters.EnvSpecificInfo = &envinfo.EnvSpecificInfo{}
+					watchParameters.DevfilePath = "hi"
+					watchParameters.DevfileNamespace = "hi"
 				} else {
-					watchParameters.ApplicationName = tt.applicationName
-					watchParameters.WatchHandler = mockPushLocal
+					return
+					// watchParameters.ApplicationName = tt.applicationName
+					// watchParameters.WatchHandler = mockPushLocal
 				}
 
 				err = WatchAndPush(

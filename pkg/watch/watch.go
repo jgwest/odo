@@ -40,8 +40,10 @@ type WatchParameters struct {
 	FileIgnores []string
 	// Custom function that can be used to push detected changes to remote pod. For more info about what each of the parameters to this function, please refer, pkg/component/component.go#PushLocal
 	WatchHandler func(*occlient.Client, string, string, string, io.Writer, []string, []string, bool, []string, bool) error
+
 	// Custom function that can be used to push detected changes to remote devfile pod. For more info about what each of the parameters to this function, please refer, pkg/devfile/adapters/interface.go#PlatformAdapter
-	// DevfileWatchHandler func(common.PushParameters) error
+	MockDevfileWatchHandler func(common.PushParameters) error
+
 	// This is a channel added to signal readiness of the watch command to the external channel listeners
 	StartChan chan bool
 	// This is a channel added to terminate the watch command gracefully without passing SIGINT. "Stop" message on this channel terminates WatchAndPush function
@@ -335,9 +337,14 @@ func WatchAndPush(client *occlient.Client, out io.Writer, parameters WatchParame
 							EnvSpecificInfo:   *parameters.EnvSpecificInfo,
 						}
 
-						adapter, err := createNewComponentAdapter(parameters)
-						if err == nil {
-							err = adapter.Push(pushParams)
+						if parameters.MockDevfileWatchHandler == nil {
+							var adapter common.ComponentAdapter
+							adapter, err = createNewComponentAdapter(parameters)
+							if err == nil {
+								err = adapter.Push(pushParams)
+							}
+						} else {
+							err = parameters.MockDevfileWatchHandler(pushParams)
 						}
 
 					} else {
@@ -360,19 +367,26 @@ func WatchAndPush(client *occlient.Client, out io.Writer, parameters WatchParame
 							EnvSpecificInfo:   *parameters.EnvSpecificInfo,
 						}
 
-						adapter, err := createNewComponentAdapter(parameters)
-						if err == nil {
-							err = adapter.Push(pushParams)
+						if parameters.MockDevfileWatchHandler == nil {
+							var adapter common.ComponentAdapter
+							adapter, err = createNewComponentAdapter(parameters)
+							if err == nil {
+								err = adapter.Push(pushParams)
+							}
+						} else {
+							err = parameters.MockDevfileWatchHandler(pushParams)
 						}
 
-						// err = parameters.DevfileWatchHandler(pushParams)
 					} else {
 						err = parameters.WatchHandler(client, parameters.ComponentName, parameters.ApplicationName, pathDir, out, []string{parameters.Path}, deletedPaths, false, parameters.FileIgnores, parameters.Show)
 					}
 
 				}
+
 				if err != nil {
-					fmt.Fprintf(out, "%s: %v\n", PushErrorString, err)
+
+					fmt.Fprintf(out, "%s - %s\n\n", PushErrorString, err.Error())
+
 					// Intentionally not exiting on error here.
 					// We don't want to break watch when push failed, it might be fixed with the next change.
 					klog.V(4).Infof("Error from Push: %v", err)

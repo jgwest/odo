@@ -55,9 +55,10 @@ type WatchOptions struct {
 	componentContext string
 	client           *occlient.Client
 
-	componentName         string
-	devfilePath           string
-	namespace             string
+	componentName string
+	devfilePath   string
+	namespace     string
+
 	initialDevfileHandler common.ComponentAdapter
 
 	// devfile commands
