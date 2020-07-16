@@ -38,23 +38,28 @@ type Adapter struct {
 // changed and devfile execution is required
 func (a Adapter) SyncFiles(syncParameters common.SyncParameters) (isPushRequired bool, err error) {
 
-	// force write the content to resolvePath
+	// Whether to write the indexer content to the index file path (resolvePath)
 	forceWrite := false
+
 	// Ret from Indexer function
 	var ret util.IndexerRet
 
 	deletedFiles := []string{}
 	changedFiles := []string{}
-	isForcePush := false
 	pushParameters := syncParameters.PushParams
-	compInfo := syncParameters.CompInfo
-	globExps := util.GetAbsGlobExps(pushParameters.Path, pushParameters.IgnoredFiles)
+
+	// Note: The previous version of this code used the values from pushParameters.WatchFiles and pushParameters.WatchDeletedFiles
+	// in order to determine what had changed. The new version ignores these values and just always uses the indexer comparison.
+	// Why? Since we need to run the indexer anyways (in order to ensure it is updated with the watch-detected changes for future push
+	// operations), we may as well use that data to detect what changed. This also reduce the potential for race conditions due to the
+	// delay between the detected watch events, and the index generation/update (causing updates to either be doubly reported or
+	// missed entirely.)
 
 	// Sync source code to the component
 	// If syncing for the first time, sync the entire source directory
 	// If syncing to an already running component, sync the deltas
 	// If syncing from an odo watch process, skip this step, as we already have the list of changed and deleted files.
-	if !syncParameters.PodChanged && !pushParameters.ForceBuild && len(pushParameters.WatchFiles) == 0 && len(pushParameters.WatchDeletedFiles) == 0 {
+	if !syncParameters.PodChanged && !pushParameters.ForceBuild {
 		absIgnoreRules := util.GetAbsGlobExps(pushParameters.Path, pushParameters.IgnoredFiles)
 
 		var s *log.Status
@@ -110,10 +115,9 @@ func (a Adapter) SyncFiles(syncParameters common.SyncParameters) (isPushRequired
 				return false, nil
 			}
 		}
-	} else if len(pushParameters.WatchFiles) > 0 || len(pushParameters.WatchDeletedFiles) > 0 {
-		changedFiles = pushParameters.WatchFiles
-		deletedFiles = pushParameters.WatchDeletedFiles
 	}
+
+	isForcePush := false
 
 	if pushParameters.ForceBuild || !syncParameters.ComponentExists || syncParameters.PodChanged {
 		isForcePush = true
@@ -123,8 +127,8 @@ func (a Adapter) SyncFiles(syncParameters common.SyncParameters) (isPushRequired
 		changedFiles,
 		deletedFiles,
 		isForcePush,
-		globExps,
-		compInfo,
+		util.GetAbsGlobExps(pushParameters.Path, pushParameters.IgnoredFiles),
+		syncParameters.CompInfo,
 	)
 	if err != nil {
 		return false, errors.Wrapf(err, "failed to sync to component with name %s", a.ComponentName)
