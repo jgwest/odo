@@ -51,14 +51,13 @@ func (a Adapter) SyncFiles(syncParameters common.SyncParameters) (isPushRequired
 	// Note: The previous version of this code used the values from pushParameters.WatchFiles and pushParameters.WatchDeletedFiles
 	// in order to determine what had changed. The new version ignores these values and just always uses the indexer comparison.
 	// Why? Since we need to run the indexer anyways (in order to ensure it is updated with the watch-detected changes for future push
-	// operations), we may as well use that data to detect what changed. This also reduce the potential for race conditions due to the
+	// operations), we may as well use those data to detect what changed. This also reduces the potential for race conditions due to the
 	// delay between the detected watch events, and the index generation/update (causing updates to either be doubly reported or
 	// missed entirely.)
 
 	// Sync source code to the component
 	// If syncing for the first time, sync the entire source directory
 	// If syncing to an already running component, sync the deltas
-	// If syncing from an odo watch process, skip this step, as we already have the list of changed and deleted files.
 	if !syncParameters.PodChanged && !pushParameters.ForceBuild {
 		absIgnoreRules := util.GetAbsGlobExps(pushParameters.Path, pushParameters.IgnoredFiles)
 
