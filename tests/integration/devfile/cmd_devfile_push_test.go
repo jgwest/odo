@@ -411,6 +411,27 @@ var _ = Describe("odo devfile push command tests", func() {
 			}
 			Expect(volumesMatched).To(Equal(true))
 		})
+
+		It("Ensure that push -f correctly removes local deleted files from the remote target sync folder", func() {
+
+			// 1) Push a generic Java project
+			helper.CmdShouldPass("odo", "create", "java-springboot", "--project", namespace, cmpName)
+			helper.CopyExample(filepath.Join("source", "devfiles", "springboot", "project"), context)
+
+			output := helper.CmdShouldPass("odo", "push", "--namespace", namespace)
+			Expect(output).To(ContainSubstring("Changes successfully pushed to component"))
+
+			// 2) Rename the pom.xml, which should cause the build to fail if sync is working as expected
+			err := os.Rename(filepath.Join(context, "pom.xml"), filepath.Join(context, "pom.xml.renamed"))
+			Expect(err).NotTo(HaveOccurred())
+
+			// 3) Ensure that the build fails due to missing 'pom.xml', which ensures that the sync operation
+			// correctly renamed pom.xml to pom.xml.renamed.
+			session := helper.CmdRunner("odo", "push", "-v", "5", "-f", "--namespace", namespace)
+			waitForOutputToContain("Non-readable POM", session)
+
+		})
+
 	})
 
 	Context("when .gitignore file exists", func() {
@@ -551,26 +572,6 @@ var _ = Describe("odo devfile push command tests", func() {
 			helper.DeleteDir(context2)
 		})
 
-	})
-
-	Context("Verify devfile push works", func() {
-
-		It("should mooooooo", func() {
-
-			helper.CmdShouldPass("odo", "create", "java-springboot", "--project", namespace, cmpName)
-			helper.CopyExample(filepath.Join("source", "devfiles", "springboot", "project"), context)
-
-			output := helper.CmdShouldPass("odo", "push", "--namespace", namespace)
-			Expect(output).To(ContainSubstring("Changes successfully pushed to component"))
-
-			err := os.Rename(filepath.Join(context, "pom.xml"), filepath.Join(context, "pom.xml.renamed"))
-			Expect(err).NotTo(HaveOccurred())
-
-			// session := helper.CmdRunner("odo", "push", "-v", "5", "--namespace", namespace)
-			session := helper.CmdRunner("odo", "push", "-v", "5", "-f", "--namespace", namespace)
-			waitForOutputToContain("Non-readable POM", session)
-
-		})
 	})
 
 })
