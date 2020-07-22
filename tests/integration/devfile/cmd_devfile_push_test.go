@@ -3,6 +3,7 @@ package devfile
 import (
 	"fmt"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"strings"
 	"time"
@@ -12,6 +13,7 @@ import (
 
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
+	"github.com/onsi/gomega/gexec"
 )
 
 var _ = Describe("odo devfile push command tests", func() {
@@ -551,4 +553,39 @@ var _ = Describe("odo devfile push command tests", func() {
 
 	})
 
+	Context("Verify devfile push works", func() {
+
+		It("should mooooooo", func() {
+
+			helper.CmdShouldPass("odo", "create", "java-springboot", "--project", namespace, cmpName)
+			helper.CopyExample(filepath.Join("source", "devfiles", "springboot", "project"), context)
+
+			output := helper.CmdShouldPass("odo", "push", "--namespace", namespace)
+			Expect(output).To(ContainSubstring("Changes successfully pushed to component"))
+
+			err := os.Rename(filepath.Join(context, "pom.xml"), filepath.Join(context, "pom.xml.renamed"))
+			Expect(err).NotTo(HaveOccurred())
+
+			// session := helper.CmdRunner("odo", "push", "-v", "5", "--namespace", namespace)
+			session := helper.CmdRunner("odo", "push", "-v", "5", "-f", "--namespace", namespace)
+			waitForOutputToContain("Non-readable POM", session)
+
+		})
+	})
+
 })
+
+func runningCmd(cmd *exec.Cmd) string {
+	prog := filepath.Base(cmd.Path)
+	return fmt.Sprintf("Running %s with args %v", prog, cmd.Args)
+}
+
+// Wait for the session stdout output to contain a particular string
+func waitForOutputToContain(substring string, session *gexec.Session) {
+
+	Eventually(func() string {
+		contents := string(session.Out.Contents())
+		return contents
+	}, 180, 10).Should(ContainSubstring(substring))
+
+}
