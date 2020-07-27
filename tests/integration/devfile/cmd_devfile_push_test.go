@@ -12,7 +12,6 @@ import (
 
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
-	"github.com/onsi/gomega/gexec"
 )
 
 var _ = Describe("odo devfile push command tests", func() {
@@ -427,7 +426,7 @@ var _ = Describe("odo devfile push command tests", func() {
 			// 3) Ensure that the build fails due to missing 'pom.xml', which ensures that the sync operation
 			// correctly renamed pom.xml to pom.xml.renamed.
 			session := helper.CmdRunner("odo", "push", "-v", "5", "-f", "--namespace", namespace)
-			waitForOutputToContain("Non-readable POM", session)
+			helper.WaitForOutputToContain("Non-readable POM", 180, 10, session)
 
 		})
 
@@ -574,13 +573,3 @@ var _ = Describe("odo devfile push command tests", func() {
 	})
 
 })
-
-// Wait for the session stdout output to contain a particular string
-func waitForOutputToContain(substring string, session *gexec.Session) {
-
-	Eventually(func() string {
-		contents := string(session.Out.Contents())
-		return contents
-	}, 180, 10).Should(ContainSubstring(substring))
-
-}
