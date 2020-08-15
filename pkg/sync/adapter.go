@@ -190,33 +190,6 @@ func (a Adapter) pushLocal(path string, files []string, delFiles []string, isFor
 	return nil
 }
 
-// isRemoteFolderEmpty returns true if the 'syncFolder' path in the pod contains no files/folders, false otherwise
-func isRemoteFolderEmpty(a Adapter, compInfo common.ComponentInfo, syncFolder string) (bool, error) {
-
-	stdoutWriter, stdoutOutputChan := common.CreateConsoleOutputWriterAndChannel()
-	stderrWriter, stderrOutputChan := common.CreateConsoleOutputWriterAndChannel()
-
-	if err := common.ExecuteCommand(a.Client, compInfo, []string{"ls", "-a", syncFolder}, false, stdoutWriter, stderrWriter); err != nil {
-		return false, err
-	}
-
-	stdoutWriter.Close()
-	stdout := <-stdoutOutputChan
-
-	stderrWriter.Close()
-	stderr := <-stderrOutputChan
-
-	// Count the number of lines from ls, should be 0 (excluding . and ..)
-	stdoutLinesFiltered := 0
-	for _, line := range stdout {
-		if line != ".." && line != "." {
-			stdoutLinesFiltered++
-		}
-	}
-
-	return stdoutLinesFiltered == 0 && len(stderr) == 0, nil
-}
-
 // getCmdToCreateSyncFolder returns the command used to create the remote sync folder on the running container
 func getCmdToCreateSyncFolder(syncFolder string) []string {
 	return []string{"mkdir", "-p", syncFolder}
