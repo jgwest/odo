@@ -8,7 +8,6 @@ import (
 
 	componentlabels "github.com/openshift/odo/pkg/component/labels"
 	"github.com/openshift/odo/pkg/envinfo"
-	"github.com/openshift/odo/pkg/machineoutput"
 
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -32,15 +31,8 @@ import (
 
 // New instantiates a component adapter
 func New(adapterContext common.AdapterContext, client kclient.Client) Adapter {
-	var loggingClient machineoutput.MachineEventLoggingClient
 
-	if log.IsJSON() {
-		loggingClient = machineoutput.NewConsoleMachineEventLoggingClient()
-	} else {
-		loggingClient = machineoutput.NewNoOpMachineEventLoggingClient()
-	}
-
-	adapter := Adapter{Client: client, machineEventLogger: loggingClient}
+	adapter := Adapter{Client: client}
 	adapter.GenericAdapter = common.NewGenericAdapter(&client, adapterContext)
 	adapter.GenericAdapter.InitWith(adapter)
 	return adapter
@@ -96,13 +88,12 @@ type Adapter struct {
 	Client kclient.Client
 	*common.GenericAdapter
 
-	devfileInitCmd     string
-	devfileBuildCmd    string
-	devfileRunCmd      string
-	devfileDebugCmd    string
-	devfileDebugPort   int
-	machineEventLogger machineoutput.MachineEventLoggingClient
-	pod                *corev1.Pod
+	devfileInitCmd   string
+	devfileBuildCmd  string
+	devfileRunCmd    string
+	devfileDebugCmd  string
+	devfileDebugPort int
+	pod              *corev1.Pod
 }
 
 // Push updates the component if a matching component exists or creates one if it doesn't exist
