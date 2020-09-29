@@ -89,7 +89,6 @@ type Adapter struct {
 	Client kclient.Client
 	*common.GenericAdapter
 
-	devfileInitCmd     string
 	devfileBuildCmd    string
 	devfileRunCmd      string
 	devfileDebugCmd    string
